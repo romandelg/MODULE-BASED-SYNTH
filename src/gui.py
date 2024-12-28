@@ -51,6 +51,8 @@ class SynthesizerGUI:
         self.create_adsr_frame()
         self.create_debug_frame()
         self.create_visualization_frame()
+        self.create_module_toggles()
+        self.create_debug_display()
         
         # Start update thread
         Thread(target=self._update_loop, daemon=True).start()
@@ -140,9 +142,54 @@ class SynthesizerGUI:
         self.spectrum_canvas = tk.Canvas(frame, width=400, height=100, bg='black')
         self.spectrum_canvas.grid(row=1, column=0, padx=5, pady=5)
 
+    def create_module_toggles(self):
+        frame = ttk.LabelFrame(self.master, text="Module Controls")
+        frame.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        
+        self.module_vars = {}
+        modules = ['Oscillator', 'Filter', 'ADSR', 'GUI Updates', 'MIDI Input', 'Debug Output']
+        
+        for i, module in enumerate(modules):
+            var = tk.BooleanVar(value=True)
+            self.module_vars[module] = var
+            cb = ttk.Checkbutton(
+                frame,
+                text=module,
+                variable=var,
+                command=lambda m=module: self._toggle_module(m)
+            )
+            cb.grid(row=i//3, column=i%3, padx=5, pady=2, sticky="w")
+
+    def create_debug_display(self):
+        frame = ttk.LabelFrame(self.master, text="Debug Output")
+        frame.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        
+        # Debug text display
+        self.debug_text = tk.Text(frame, height=6, width=50, bg='black', fg='green')
+        self.debug_text.pack(padx=5, pady=5, fill=tk.BOTH, expand=True)
+        
+        # Autoscroll
+        self.debug_scroll = ttk.Scrollbar(frame, command=self.debug_text.yview)
+        self.debug_text.configure(yscrollcommand=self.debug_scroll.set)
+        self.debug_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
     def _toggle_bypass(self, module: str):
         STATE.bypass[module] = self.bypass_vars[module].get()
         
+    def _toggle_module(self, module: str):
+        state = self.module_vars[module].get()
+        self.log_debug(f"Module {module}: {'Enabled' if state else 'Disabled'}")
+        # Add specific module handling here
+
+    def log_debug(self, message: str):
+        """Add message to debug display"""
+        timestamp = time.strftime("%H:%M:%S")
+        self.debug_text.insert(tk.END, f"{timestamp} - {message}\n")
+        self.debug_text.see(tk.END)  # Autoscroll
+        # Keep only last 100 lines
+        if int(self.debug_text.index('end-1c').split('.')[0]) > 100:
+            self.debug_text.delete('1.0', '2.0')
+
     def _update_visualization(self):
         # Update waveform display
         signal_data = DEBUG.get_signal_data('audio_out')
@@ -176,6 +223,10 @@ class SynthesizerGUI:
         update_interval = 1.0 / 15  # Reduced to 15 FPS
         while self.running:
             try:
+                if not self.module_vars['GUI Updates'].get():
+                    time.sleep(1.0/15)
+                    continue
+                    
                 with self.update_lock:
                     # Update performance stats
                     cpu_load = DEBUG.get_performance_stats() * 100
@@ -189,9 +240,13 @@ class SynthesizerGUI:
                     active_voices = DEBUG.get_active_voice_count()
                     self.voice_count.configure(text=f"Voices: {active_voices}")
                     
+                    # Add debug info
+                    if self.module_vars['Debug Output'].get():
+                        self.log_debug(f"Active voices: {active_voices}")
+                        self.log_debug(f"CPU Load: {cpu_load:.1f}%")
+                    
             except Exception as e:
-                DEBUG.log_error("GUI update error", e)
-                
+                self.log_debug(f"Error: {str(e)}")
             time.sleep(update_interval)
             
     def stop(self):

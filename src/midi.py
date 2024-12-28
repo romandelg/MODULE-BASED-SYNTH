@@ -33,6 +33,7 @@ from typing import Callable, Optional
 from queue import Queue
 from threading import Thread
 from config import MIDI_CONFIG, STATE  # Changed from relative import
+import time
 
 class MIDIHandler:
     def __init__(self, device_name=None):
@@ -65,17 +66,34 @@ class MIDIHandler:
             
     def _midi_loop(self):
         while self.running:
+            # Process MIDI messages
             for msg in self.midi_in.iter_pending():
                 self._handle_midi_message(msg)
-                
+            
+            # Process event queue
+            try:
+                while not self.event_queue.empty():
+                    event_type, note, velocity = self.event_queue.get_nowait()
+                    if self.callback:
+                        self.callback(event_type, note, velocity)
+            except Exception as e:
+                print(f"MIDI callback error: {e}")
+            
+            time.sleep(0.001)  # Small sleep to prevent CPU overload
+
     def _handle_midi_message(self, msg):
-        if msg.type == 'note_on':
-            self.event_queue.put(('note_on', msg.note, msg.velocity))
-        elif msg.type == 'note_off':
-            self.event_queue.put(('note_off', msg.note, 0))
-        elif msg.type == 'control_change':
-            self._handle_cc(msg.control, msg.value)
-                
+        print(f"MIDI IN: {msg}")
+        
+        if msg.type == 'note_on' and msg.velocity > 0:  # Check velocity > 0
+            print(f"Note ON: {msg.note} velocity: {msg.velocity}")
+            if self.callback:  # Direct callback for testing
+                self.callback('note_on', msg.note, msg.velocity)
+            
+        elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
+            print(f"Note OFF: {msg.note}")
+            if self.callback:  # Direct callback for testing
+                self.callback('note_off', msg.note, 0)
+
     def _handle_cc(self, cc: int, value: int):
         normalized = value / 127.0
         

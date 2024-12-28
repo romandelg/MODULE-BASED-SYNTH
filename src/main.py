@@ -1,38 +1,9 @@
 """
-Main Application Entry Point
---------------------------
-System initialization and device management.
-
-Features:
-1. Device Management:
-   - Audio device detection and selection
-   - MIDI device detection and connection
-   - Automatic device fallback
-   - Device error handling
-
-2. System Initialization:
-   - Core synthesizer setup
-   - MIDI handler initialization
-   - GUI creation and configuration
-   - Thread management
-
-3. Resource Management:
-   - Clean shutdown handling
-   - Resource cleanup
-   - Error recovery
-   - Device disconnection handling
-
-4. User Interface:
-   - Device selection prompts
-   - Status messages
-   - Error reporting
-   - Device information display
-
-Architecture Flow:
-1. Device Detection → Selection → Configuration
-2. System Initialization → Resource Allocation
-3. Main Loop → Event Processing
-4. Shutdown → Cleanup
+Main Application Entry
+-------------------
+- Audio device setup
+- MIDI device setup
+- Basic error handling
 """
 
 import tkinter as tk
@@ -91,44 +62,51 @@ def select_midi_device():
             print("Please enter a number in the valid range")
 
 def main():
-    # Force Realtek audio device
-    output_device = force_realtek_device()
-    
-    # Select MIDI device
-    midi_device = select_midi_device()
-    
-    # Create synth with forced Realtek device
-    synth = Synthesizer(device=output_device)
-    
-    # Create and initialize MIDI handler with device selection
-    midi = MIDIHandler(midi_device)
-    
-    # Create GUI and pass device info
-    root, gui = create_gui()
-    if midi_device:
-        gui.update_midi_device(midi_device)
-    
-    # Start the synth engine
-    synth.start()
-    
-    # Connect MIDI callbacks
-    def midi_callback(event_type, note, velocity):
-        if event_type == 'note_on':
-            synth.note_on(note, velocity)
-        elif event_type == 'note_off':
-            synth.note_off(note)
-    
-    # Start MIDI handling
-    midi.start(midi_callback)
-    
+    """Initialize and run the synthesizer"""
     try:
-        # Start GUI main loop
-        root.mainloop()
+        # Force Realtek audio device
+        output_device = force_realtek_device()
+        
+        # Select MIDI device
+        midi_device = select_midi_device()
+        
+        # Create synth with forced Realtek device
+        synth = Synthesizer(device=output_device)
+        
+        # Create and initialize MIDI handler with device selection
+        midi = MIDIHandler(midi_device)
+        
+        # Create GUI and pass device info
+        root, gui = create_gui()
+        if midi_device:
+            gui.update_midi_device(midi_device)
+        
+        # Start the synth engine
+        synth.start()
+        print("Synth started - ready for MIDI input")
+        
+        # Connect MIDI callbacks
+        def midi_callback(event_type, note, velocity):
+            if event_type == 'note_on':
+                synth.note_on(note, velocity)
+            elif event_type == 'note_off':
+                synth.note_off(note)
+        
+        # Start MIDI handling
+        midi.start(midi_callback)
+        
+        try:
+            # Start GUI main loop
+            root.mainloop()
+        finally:
+            # Cleanup
+            synth.stop()
+            midi.stop()
+            gui.stop()
+        
     finally:
-        # Cleanup
-        synth.stop()
-        midi.stop()
-        gui.stop()
+        if 'synth' in locals(): synth.stop()
+        if 'midi' in locals(): midi.stop()
 
 if __name__ == "__main__":
     main()
