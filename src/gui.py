@@ -25,7 +25,7 @@ Features:
 
 import tkinter as tk
 from tkinter import ttk
-import numpy np
+import numpy as np  # Fix the import statement
 from threading import Thread, Lock
 from typing import Dict, Any
 import time
@@ -66,6 +66,7 @@ class SynthesizerGUI:
         self.create_adsr_frame()
         self.create_visualization_frame()
         self.create_level_visualizer()
+        self.create_kill_audio_button()  # Add Kill Audio button
         
         # Start update thread
         Thread(target=self._update_loop, daemon=True).start()
@@ -195,6 +196,16 @@ class SynthesizerGUI:
         self.pan_slider.set(STATE.master_pan)
         self.pan_slider.grid(row=1, column=2, padx=5, pady=5)
         self.pan_slider.configure(command=self._update_pan)
+
+    def create_kill_audio_button(self):
+        """Create the Kill Audio button to stop all active notes"""
+        button = ttk.Button(self.main_frame, text="Kill Audio", command=self._kill_audio)
+        button.grid(row=2, column=3, padx=5, pady=5, sticky="nsew")
+
+    def _kill_audio(self):
+        """Stop all active notes"""
+        for voice in self.master.voices:
+            voice.reset()
 
     def _update_osc_mix(self, value, index):
         """Update oscillator mix level"""

@@ -110,8 +110,15 @@ class Synthesizer:
         with self.lock:
             for voice in self.voices:
                 if voice.note == note:
-                    voice.adsr.gate_off()
+                    print(f"Note Off: {note}")
+                    voice.adsr.gate_off()  # Transition ADSR to release state
                     break
+
+    def reset_all_voices(self):
+        """Reset all active voices"""
+        with self.lock:
+            for voice in self.voices:
+                voice.reset()
             
     def _find_free_voice(self):
         """Find a free voice or steal the oldest active voice"""
