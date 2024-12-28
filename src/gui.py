@@ -47,18 +47,35 @@ class SynthesizerGUI:
         self.running = True
         
         # Create main containers
+        self.create_scrollable_area()
         self.create_oscillator_frame()
         self.create_filter_frame()
         self.create_adsr_frame()
-        self.create_performance_frame()
         self.create_visualization_frame()
-        self.create_module_toggles()
         
         # Start update thread
         Thread(target=self._update_loop, daemon=True).start()
-        
+
+    def create_scrollable_area(self):
+        self.canvas = tk.Canvas(self.master)
+        self.scrollbar = ttk.Scrollbar(self.master, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = ttk.Frame(self.canvas)
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(
+                scrollregion=self.canvas.bbox("all")
+            )
+        )
+
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
     def create_oscillator_frame(self):
-        frame = ttk.LabelFrame(self.master, text="Oscillators")
+        frame = ttk.LabelFrame(self.scrollable_frame, text="Oscillators")
         frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
         self.osc_levels = []
@@ -73,7 +90,7 @@ class SynthesizerGUI:
             level.grid(row=1, column=i, padx=2, pady=2)
             self.osc_levels.append(level)
             
-            detune = ttk.Scale(frame, from_=1.0, to=-1.0, length=200)
+            detune = ttk.Scale(frame, from_=1.0, to=-1.0, length=200, orient="vertical")
             detune.set(STATE.osc_detune[i])
             detune.grid(row=2, column=i, padx=2, pady=2)
             detune.configure(command=lambda val, idx=i: self._update_osc_detune(val, idx))
@@ -86,17 +103,17 @@ class SynthesizerGUI:
             self.osc_waveforms.append(waveform)
             
     def create_filter_frame(self):
-        frame = ttk.LabelFrame(self.master, text="Filter")
+        frame = ttk.LabelFrame(self.scrollable_frame, text="Filter")
         frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
         
         ttk.Label(frame, text="Cutoff").grid(row=0, column=0)
-        self.cutoff = ttk.Scale(frame, from_=1.0, to=0.0, length=200)
+        self.cutoff = ttk.Scale(frame, from_=1.0, to=0.0, length=200, orient="vertical")
         self.cutoff.set(STATE.filter_cutoff)
         self.cutoff.grid(row=1, column=0, padx=2, pady=2)
         self.cutoff.configure(command=lambda val: self._update_filter_cutoff(val))
         
         ttk.Label(frame, text="Resonance").grid(row=0, column=1)
-        self.resonance = ttk.Scale(frame, from_=1.0, to=0.0, length=200)
+        self.resonance = ttk.Scale(frame, from_=1.0, to=0.0, length=200, orient="vertical")
         self.resonance.set(STATE.filter_res)
         self.resonance.grid(row=1, column=1, padx=2, pady=2)
         self.resonance.configure(command=lambda val: self._update_filter_res(val))
@@ -108,7 +125,7 @@ class SynthesizerGUI:
         self.filter_type.bind("<<ComboboxSelected>>", self._update_filter_type)
         
     def create_adsr_frame(self):
-        frame = ttk.LabelFrame(self.master, text="ADSR")
+        frame = ttk.LabelFrame(self.scrollable_frame, text="ADSR")
         frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
         
         self.adsr_sliders = {}
@@ -119,27 +136,9 @@ class SynthesizerGUI:
             slider.grid(row=1, column=i, padx=2, pady=2)
             slider.configure(command=lambda val, p=param: self._update_adsr(p, val))
             self.adsr_sliders[param] = slider
-            
-    def create_performance_frame(self):
-        frame = ttk.LabelFrame(self.master, text="Performance")
-        frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
-        
-        # Performance metrics
-        metrics_frame = ttk.Frame(frame)
-        metrics_frame.grid(row=0, column=0, sticky="ew", pady=5)
-        
-        self.perf_label = ttk.Label(metrics_frame, text="CPU: 0.0%")
-        self.perf_label.pack(side="left", padx=5)
-        
-        self.voice_count = ttk.Label(metrics_frame, text="Voices: 0")
-        self.voice_count.pack(side="left", padx=5)
-
-        # Add MIDI device info
-        self.midi_label = ttk.Label(metrics_frame, text="MIDI: None")
-        self.midi_label.pack(side="left", padx=5)
 
     def create_visualization_frame(self):
-        frame = ttk.LabelFrame(self.master, text="Signal Monitoring")
+        frame = ttk.LabelFrame(self.scrollable_frame, text="Signal Monitoring")
         frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         # Create waveform plot
@@ -159,31 +158,6 @@ class SynthesizerGUI:
         self.spectrum_ax.set_xlim(0, 512)
         self.spectrum_ax.set_ylim(0, 200)  # Update y-axis limit to 200
         self.spectrum_line, = self.spectrum_ax.plot([], [], lw=1, color='red')
-
-    def create_module_toggles(self):
-        frame = ttk.LabelFrame(self.master, text="Module Controls")
-        frame.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        
-        self.module_vars = {}
-        modules = ['Oscillator', 'Filter', 'ADSR', 'GUI Updates', 'MIDI Input']
-        
-        for i, module in enumerate(modules):
-            var = tk.BooleanVar(value=True)
-            self.module_vars[module] = var
-            cb = ttk.Checkbutton(
-                frame,
-                text=module,
-                variable=var,
-                command=lambda m=module: self._toggle_module(m)
-            )
-            cb.grid(row=i//3, column=i%3, padx=5, pady=2, sticky="w")
-
-    def _toggle_bypass(self, module: str):
-        STATE.bypass[module] = self.bypass_vars[module].get()
-        
-    def _toggle_module(self, module: str):
-        state = self.module_vars[module].get()
-        # Add specific module handling here
 
     def _update_osc_mix(self, value, index):
         STATE.osc_mix[index] = float(value)
@@ -246,27 +220,20 @@ class SynthesizerGUI:
         update_interval = 1.0 / 30  # 30 FPS refresh rate
         while self.running:
             try:
-                if not self.module_vars['GUI Updates'].get():
-                    time.sleep(update_interval)
-                    continue
-                    
+                if not self.master.winfo_exists():
+                    break
+
                 with self.update_lock:
-                    # Update performance stats
-                    cpu_load = DEBUG.get_performance_stats() * 100
-                    self.perf_label.configure(text=f"CPU: {cpu_load:.1f}%")
-                    
                     # Update visualizations only if window is visible
                     if self.waveform_canvas.get_tk_widget().winfo_viewable():
                         self._update_visualization()
                     
-                    # Update voice count
-                    active_voices = DEBUG.get_active_voice_count()
-                    self.voice_count.configure(text=f"Voices: {active_voices}")
-                    
                     # Update GUI elements
                     self._update_gui_elements()
                     
-            except Exception as e:
+            except tk.TclError as e:
+                if "application has been destroyed" in str(e):
+                    break
                 print(f"Error: {str(e)}")
             time.sleep(update_interval)
             
@@ -274,7 +241,7 @@ class SynthesizerGUI:
         self.running = False
 
     def update_midi_device(self, device_name: str):
-        self.midi_label.configure(text=f"MIDI: {device_name}")
+        pass  # Method removed as midi_label is no longer used
 
 def create_gui():
     root = tk.Tk()

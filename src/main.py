@@ -76,10 +76,8 @@ def main():
         # Create and initialize MIDI handler with device selection
         midi = MIDIHandler(midi_device)
         
-        # Create GUI and pass device info
+        # Create GUI
         root, gui = create_gui()
-        if midi_device:
-            gui.update_midi_device(midi_device)
         
         # Start the synth engine
         synth.start()

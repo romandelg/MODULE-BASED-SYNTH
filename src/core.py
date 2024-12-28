@@ -67,8 +67,10 @@ class Voice:
             if STATE.osc_mix[i] > 0.001:
                 detune = STATE.osc_detune[i]
                 osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
-                osc_output = self.filter.process(osc_output)
-                output += osc_output * STATE.osc_mix[i] * self.velocity * adsr_output
+                output += osc_output * STATE.osc_mix[i] * self.velocity
+        # Disable filter processing
+        # output = self.filter.process(output) * adsr_output
+        output *= adsr_output
         return output
 
 class Synthesizer:

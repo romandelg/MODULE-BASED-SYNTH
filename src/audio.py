@@ -79,18 +79,16 @@ class Filter:
 
     def lowpass(self, signal: np.ndarray) -> np.ndarray:
         """Low-pass filter implementation"""
-        # Simple one-pole low-pass filter
-        alpha = self.cutoff
+        alpha = np.exp(-2.0 * np.pi * self.cutoff / 44100.0)
         output = np.zeros_like(signal)
         for i in range(len(signal)):
-            self.z1 = alpha * signal[i] + (1 - alpha) * self.z1
+            self.z1 = alpha * self.z1 + (1 - alpha) * signal[i]
             output[i] = self.z1
         return output
 
     def highpass(self, signal: np.ndarray) -> np.ndarray:
         """High-pass filter implementation"""
-        # Simple one-pole high-pass filter
-        alpha = self.cutoff
+        alpha = np.exp(-2.0 * np.pi * self.cutoff / 44100.0)
         output = np.zeros_like(signal)
         for i in range(len(signal)):
             self.z1 = alpha * (self.z1 + signal[i] - self.z2)
@@ -100,8 +98,7 @@ class Filter:
 
     def bandpass(self, signal: np.ndarray) -> np.ndarray:
         """Band-pass filter implementation"""
-        # Simple band-pass filter
-        alpha = self.cutoff
+        alpha = np.exp(-2.0 * np.pi * self.cutoff / 44100.0)
         output = np.zeros_like(signal)
         for i in range(len(signal)):
             self.z1 = alpha * (signal[i] - self.z2) + (1 - alpha) * self.z1
