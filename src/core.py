@@ -134,7 +134,7 @@ class Synthesizer:
                                 output += osc_output * STATE.osc_mix[i] * voice.velocity
                 
                 # Monitor the output signal
-                DEBUG.monitor_signal('audio_out', np.mean(np.abs(output)))
+                DEBUG.monitor_signal('audio_out', output)
                 
                 # Write to output buffer
                 outdata[:] = output.reshape(-1, 1)  # Mono output

@@ -54,10 +54,9 @@ class SignalMonitor:
         self.buffer = deque(maxlen=buffer_size)
         self.lock = Lock()
         
-    def update(self, value: float):
+    def update(self, values: np.ndarray):
         with self.lock:
-            self.buffer.append(value)
-        print(f"Signal updated: {value}")  # Debug print
+            self.buffer.extend(values)
             
     def get_data(self) -> list:
         with self.lock:
@@ -112,15 +111,13 @@ class DebugSystem:
         """Log warning message"""
         logging.warning(message)
             
-    def monitor_signal(self, name: str, value: float):
+    def monitor_signal(self, name: str, values: np.ndarray):
         if name in self.signal_monitors:
-            self.signal_monitors[name].update(value)
+            self.signal_monitors[name].update(values)
             
     def get_signal_data(self, name: str) -> list:
         if name in self.signal_monitors:
-            data = self.signal_monitors[name].get_data()
-            print(f"Retrieved signal data for {name}: {data[:10]}")  # Debug print
-            return data
+            return self.signal_monitors[name].get_data()
         return []
         
     def get_performance_stats(self) -> float:
