@@ -80,6 +80,8 @@ class Filter:
         self.sample_rate = 44100
         self.min_freq = 20.0    # 20 Hz
         self.max_freq = 22000.0 # 22 kHz
+        self.resonance_scale = 5.0  # Increase resonance effect
+        self.cutoff_scale = 4.0    # Make cutoff more aggressive
 
     def set_parameters(self, cutoff, resonance, filter_type, steepness=1.0, harmonics=0.0):
         """Update filter parameters"""
@@ -91,48 +93,49 @@ class Filter:
 
     def process(self, signal):
         """Process audio through the filter"""
-        # Convert cutoff from 0-1 range to frequency with exponential scaling
-        cutoff_freq = self.min_freq * np.exp(np.log(self.max_freq / self.min_freq) * self.cutoff)
+        # More aggressive frequency scaling
+        cutoff_freq = self.min_freq * (self.max_freq / self.min_freq) ** (self.cutoff ** 2)
         
-        # Calculate filter coefficients
+        # Calculate filter coefficients with stronger resonance
         w0 = 2.0 * np.pi * cutoff_freq / self.sample_rate
         cosw0 = np.cos(w0)
-        alpha = np.sin(w0) / (2.0 * (1.0 - self.resonance))
+        alpha = np.sin(w0) / (2.0 * (1.0 - (self.resonance ** 0.5) * 0.99))  # More aggressive resonance
         
         # Initialize coefficients
-        a0 = 1.0 + alpha
+        a0 = 1.0 + alpha * self.resonance_scale
         a1 = -2.0 * cosw0
-        a2 = 1.0 - alpha
-        b0 = (1.0 - cosw0) / 2.0
-        b1 = 1.0 - cosw0
-        b2 = (1.0 - cosw0) / 2.0
+        a2 = 1.0 - alpha * self.resonance_scale
         
-        # Adjust coefficients based on filter type
-        if self.filter_type == 'highpass':
-            b0 = (1.0 + cosw0) / 2.0
-            b1 = -(1.0 + cosw0)
-            b2 = (1.0 + cosw0) / 2.0
+        if self.filter_type == 'lowpass':
+            b0 = (1.0 - cosw0) / 2.0 * self.cutoff_scale
+            b1 = (1.0 - cosw0) * self.cutoff_scale
+            b2 = (1.0 - cosw0) / 2.0 * self.cutoff_scale
+        elif self.filter_type == 'highpass':
+            b0 = (1.0 + cosw0) / 2.0 * self.cutoff_scale
+            b1 = -(1.0 + cosw0) * self.cutoff_scale
+            b2 = (1.0 + cosw0) / 2.0 * self.cutoff_scale
         elif self.filter_type == 'bandpass':
-            b0 = alpha
+            b0 = alpha * self.cutoff_scale
             b1 = 0.0
-            b2 = -alpha
-        
+            b2 = -alpha * self.cutoff_scale
+
         # Normalize coefficients
         b0 /= a0
         b1 /= a0
         b2 /= a0
         a1 /= a0
         a2 /= a0
-        
-        # Process signal through multiple filter stages based on steepness
+
+        # Process signal through multiple filter stages
         output = signal.copy()
         stages = int(self.steepness)
         
         for stage in range(stages):
             temp = np.zeros_like(output)
             for i in range(len(output)):
-                # Apply filter stage
-                temp[i] = b0 * output[i] + b1 * self.z1[stage] + b2 * self.z2[stage] - a1 * self.z1[stage] - a2 * self.z2[stage]
+                # Apply filter with increased effect
+                temp[i] = (b0 * output[i] + b1 * self.z1[stage] + b2 * self.z2[stage] 
+                          - a1 * self.z1[stage] - a2 * self.z2[stage])
                 
                 # Update delay line
                 self.z2[stage] = self.z1[stage]
@@ -140,35 +143,8 @@ class Filter:
             
             output = temp
 
-        # Add harmonics by mixing in filtered signal at octave intervals
-        if self.harmonics > 0:
-            harmonic_mix = np.zeros_like(output)
-            for harmonic in range(2, 5):  # Add 2nd, 3rd, and 4th harmonics
-                harmonic_cutoff = min(0.99, self.cutoff * harmonic)
-                w0 = 2.0 * np.pi * (cutoff_freq * harmonic) / self.sample_rate
-                cosw0 = np.cos(w0)
-                alpha = np.sin(w0) / (2.0 * (1.0 - self.resonance))
-                
-                # Recalculate coefficients for harmonic
-                a0 = 1.0 + alpha
-                a1 = -2.0 * cosw0 / a0
-                a2 = (1.0 - alpha) / a0
-                b0 = (1.0 - cosw0) / (2.0 * a0)
-                b1 = (1.0 - cosw0) / a0
-                b2 = (1.0 - cosw0) / (2.0 * a0)
-                
-                # Process harmonic
-                harm_output = np.zeros_like(output)
-                z1h, z2h = 0.0, 0.0
-                for i in range(len(output)):
-                    harm_output[i] = b0 * output[i] + b1 * z1h + b2 * z2h - a1 * z1h - a2 * z2h
-                    z2h = z1h
-                    z1h = output[i]
-                
-                harmonic_mix += harm_output * (0.5 ** harmonic)  # Decrease amplitude for higher harmonics
-            
-            # Mix in harmonics
-            output = output + harmonic_mix * self.harmonics
+        # Apply final gain scaling
+        output *= (1.0 - self.cutoff * 0.5)  # Reduce volume more as cutoff decreases
         
         return output
 
