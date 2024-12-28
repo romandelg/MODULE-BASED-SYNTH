@@ -90,15 +90,15 @@ class MIDIHandler:
 
     def _handle_midi_message(self, msg):
         try:
+            print(f"Received MIDI message: {msg}")  # Debugging statement
             if msg.type == 'note_on' and msg.velocity > 0:
                 self.callback('note_on', msg.note, msg.velocity)
             elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
                 self.callback('note_off', msg.note, 0)
             elif msg.type == 'control_change':
                 self._handle_cc(msg.control, msg.value)
-                
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error handling MIDI message: {e}")  # Debugging statement
 
     def _handle_cc(self, cc: int, value: int):
         with self.lock:

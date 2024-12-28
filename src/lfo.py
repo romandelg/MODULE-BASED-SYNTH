@@ -59,8 +59,11 @@ class LFO:
 
         if not self.bypassed:
             for target_name, base_value in self.targets.items():
-                modulated_value = base_value + lfo_output * self.depth  # Apply modulation depth
-                setattr(STATE, target_name, modulated_value)
+                new_value = base_value + lfo_output * self.depth * 2
+                current_value = getattr(STATE, target_name, base_value)
+                if abs(new_value - current_value) > 0.001:  # Only update if change is significant
+                    setattr(STATE, target_name, new_value)
+                    # print(f"LFO modifying {target_name}: {new_value}")  # Comment out or remove debug print
 
         return lfo_output  # Return the generated LFO waveform
 

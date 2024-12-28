@@ -22,6 +22,7 @@ class Voice:
         self.active = False       # Voice active state
         self.oscillators = [Oscillator() for _ in range(4)]  # 4 oscillators per voice
         self.adsr = ADSR()       # Amplitude envelope
+        self.filter = Filter()  # Add filter instance per voice
 
     def reset(self):
         """Reset the voice to its initial state"""
@@ -54,10 +55,27 @@ class Voice:
         for i, osc in enumerate(self.oscillators):
             if STATE.osc_mix[i] > 0.001:  # Skip if oscillator is muted
                 detune = STATE.osc_detune[i]
-                osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
+                osc_output = osc.generate(
+                    frequency=frequency,
+                    waveform=STATE.osc_waveforms[i],
+                    samples=frames,  # Changed from 'frames' to 'samples' to match Oscillator.generate()
+                    detune=detune,
+                    harmonics=STATE.osc_harmonics[i]
+                )
                 output += osc_output * STATE.osc_mix[i] * self.velocity
                 
-        return output * adsr_output  # Apply envelope
+        # Apply envelope
+        output = output * adsr_output
+        
+        # Update and apply filter
+        self.filter.set_parameters(
+            cutoff=STATE.filter_cutoff,
+            resonance=STATE.filter_res,
+            filter_type=STATE.filter_type
+        )
+        output = self.filter.process(output)
+        
+        return output
 
 class Synthesizer:
     """Main synthesizer engine managing multiple voices and audio output"""

@@ -30,10 +30,13 @@ class ModuleState:
     def __init__(self):
         self.osc_mix = np.ones(4) * 0.25
         self.osc_detune = np.zeros(4)
+        self.osc_harmonics = np.zeros(4)  # Add harmonics control for each oscillator
         self.osc_waveforms = ['sine', 'saw', 'triangle', 'pulse']
         self.filter_cutoff = 1.0
         self.filter_res = 0.0
         self.filter_type = 'lowpass'
+        self.filter_steepness = 1.0  # Number of filter stages (1-4)
+        self.filter_harmonics = 0.0  # Amount of harmonic enhancement (0-1)
         self.adsr = {
             'attack': 0.01,
             'decay': 0.1,
@@ -45,7 +48,7 @@ class ModuleState:
         self.lfo_frequency = 1.0
         self.lfo_waveform = 'sine'
         self.lfo_offset = 0.0
-        self.lfo_depth = 1.0
+        self.lfo_depth = 1.0  # Initialize with default depth
 
 # Global configuration instances
 AUDIO_CONFIG = AudioConfig()

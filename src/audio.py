@@ -14,15 +14,17 @@ class Oscillator:
     
     def __init__(self):
         self.phase = 0.0  # Keep track of phase for continuous waveform
+        self.harmonics_phases = np.zeros(8)  # Track phases for up to 8 harmonics
         
-    def generate(self, frequency: float, waveform: str, samples: int, detune: float = 0.0) -> np.ndarray:
-        """Generate audio samples for the requested waveform
+    def generate(self, frequency: float, waveform: str, samples: int, detune: float = 0.0, harmonics: float = 0.0) -> np.ndarray:
+        """Generate audio samples with optional harmonics
         
         Args:
             frequency: Base frequency in Hz
-            waveform: Type of waveform to generate (sine/saw/triangle/pulse)
-            samples: Number of samples to generate
+            waveform: Type of waveform to generate
+            samples: Number of samples to generate  # Documentation matches parameter name
             detune: Pitch offset in semitones
+            harmonics: Amount of harmonic content (0.0 - 1.0)
         """
         # Ensure phase continuity between buffer generations
         self.phase = self.phase % (2 * np.pi)
@@ -36,71 +38,138 @@ class Oscillator:
                        samples, 
                        endpoint=False)
         
-        # Generate waveform based on type
-        if waveform == 'sine':
-            output = np.sin(t)  # Pure sine wave
-        elif waveform == 'saw':
-            # Bandlimited sawtooth approximation
-            output = 2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))
-        elif waveform == 'triangle':
-            # Bandlimited triangle approximation
-            output = 2 * np.abs(2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))) - 1
-        elif waveform == 'pulse':
-            # Simple pulse wave (50% duty cycle)
-            output = np.where(t % (2 * np.pi) < np.pi, 1.0, -1.0)
-        else:
-            output = np.sin(t)  # Default to sine
-            
-        self.phase = t[-1]  # Store phase for next buffer
+        # Generate base waveform
+        output = self._generate_base_waveform(t, waveform)
+        
+        # Add harmonics if enabled
+        if harmonics > 0:
+            for i in range(2, 9):  # Add 2nd through 8th harmonics
+                harmonic_t = np.linspace(self.harmonics_phases[i-2],
+                                       self.harmonics_phases[i-2] + 2 * np.pi * (detuned_frequency * i) * samples / 44100,
+                                       samples,
+                                       endpoint=False)
+                
+                harmonic = self._generate_base_waveform(harmonic_t, waveform)
+                output += harmonic * (harmonics / i)  # Decrease amplitude for higher harmonics
+                self.harmonics_phases[i-2] = harmonic_t[-1] % (2 * np.pi)
+        
+        self.phase = t[-1] % (2 * np.pi)
         return output
+
+    def _generate_base_waveform(self, t, waveform):
+        """Generate basic waveform without harmonics"""
+        if waveform == 'sine':
+            return np.sin(t)
+        elif waveform == 'saw':
+            return 2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))
+        elif waveform == 'triangle':
+            return 2 * np.abs(2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))) - 1
+        elif waveform == 'pulse':
+            return np.where(t % (2 * np.pi) < np.pi, 1.0, -1.0)
+        return np.sin(t)  # Default to sine
 
 class Filter:
-    """Applies real-time audio filtering with multiple modes"""
-    
     def __init__(self):
-        self.cutoff = 0.5
+        self.cutoff = 0.99
         self.resonance = 0.0
         self.filter_type = 'lowpass'
-        self.z1 = 0.0
-        self.z2 = 0.0
+        self.steepness = 1.0
+        self.harmonics = 0.0
+        self.z1 = [0.0, 0.0, 0.0, 0.0]  # Four filter stages
+        self.z2 = [0.0, 0.0, 0.0, 0.0]
+        self.sample_rate = 44100
+        self.min_freq = 20.0    # 20 Hz
+        self.max_freq = 22000.0 # 22 kHz
 
-    def process(self, signal: np.ndarray) -> np.ndarray:
-        """Process the signal with the filter"""
-        if self.filter_type == 'lowpass':
-            return self.lowpass(signal)
-        elif self.filter_type == 'highpass':
-            return self.highpass(signal)
+    def set_parameters(self, cutoff, resonance, filter_type, steepness=1.0, harmonics=0.0):
+        """Update filter parameters"""
+        self.cutoff = min(max(cutoff, 0.01), 0.99)
+        self.resonance = min(max(resonance, 0.0), 0.99)
+        self.filter_type = filter_type
+        self.steepness = min(max(steepness, 1.0), 4.0)  # Limit to 1-4 stages
+        self.harmonics = min(max(harmonics, 0.0), 1.0)
+
+    def process(self, signal):
+        """Process audio through the filter"""
+        # Convert cutoff from 0-1 range to frequency with exponential scaling
+        cutoff_freq = self.min_freq * np.exp(np.log(self.max_freq / self.min_freq) * self.cutoff)
+        
+        # Calculate filter coefficients
+        w0 = 2.0 * np.pi * cutoff_freq / self.sample_rate
+        cosw0 = np.cos(w0)
+        alpha = np.sin(w0) / (2.0 * (1.0 - self.resonance))
+        
+        # Initialize coefficients
+        a0 = 1.0 + alpha
+        a1 = -2.0 * cosw0
+        a2 = 1.0 - alpha
+        b0 = (1.0 - cosw0) / 2.0
+        b1 = 1.0 - cosw0
+        b2 = (1.0 - cosw0) / 2.0
+        
+        # Adjust coefficients based on filter type
+        if self.filter_type == 'highpass':
+            b0 = (1.0 + cosw0) / 2.0
+            b1 = -(1.0 + cosw0)
+            b2 = (1.0 + cosw0) / 2.0
         elif self.filter_type == 'bandpass':
-            return self.bandpass(signal)
-        return signal
+            b0 = alpha
+            b1 = 0.0
+            b2 = -alpha
+        
+        # Normalize coefficients
+        b0 /= a0
+        b1 /= a0
+        b2 /= a0
+        a1 /= a0
+        a2 /= a0
+        
+        # Process signal through multiple filter stages based on steepness
+        output = signal.copy()
+        stages = int(self.steepness)
+        
+        for stage in range(stages):
+            temp = np.zeros_like(output)
+            for i in range(len(output)):
+                # Apply filter stage
+                temp[i] = b0 * output[i] + b1 * self.z1[stage] + b2 * self.z2[stage] - a1 * self.z1[stage] - a2 * self.z2[stage]
+                
+                # Update delay line
+                self.z2[stage] = self.z1[stage]
+                self.z1[stage] = output[i]
+            
+            output = temp
 
-    def lowpass(self, signal: np.ndarray) -> np.ndarray:
-        """Low-pass filter implementation"""
-        alpha = np.exp(-2.0 * np.pi * self.cutoff / 44100.0)
-        output = np.zeros_like(signal)
-        for i in range(len(signal)):
-            self.z1 = alpha * self.z1 + (1 - alpha) * signal[i]
-            output[i] = self.z1
-        return output
-
-    def highpass(self, signal: np.ndarray) -> np.ndarray:
-        """High-pass filter implementation"""
-        alpha = np.exp(-2.0 * np.pi * self.cutoff / 44100.0)
-        output = np.zeros_like(signal)
-        for i in range(len(signal)):
-            self.z1 = alpha * (self.z1 + signal[i] - self.z2)
-            self.z2 = signal[i]
-            output[i] = self.z1
-        return output
-
-    def bandpass(self, signal: np.ndarray) -> np.ndarray:
-        """Band-pass filter implementation"""
-        alpha = np.exp(-2.0 * np.pi * self.cutoff / 44100.0)
-        output = np.zeros_like(signal)
-        for i in range(len(signal)):
-            self.z1 = alpha * (signal[i] - self.z2) + (1 - alpha) * self.z1
-            self.z2 = signal[i]
-            output[i] = self.z1
+        # Add harmonics by mixing in filtered signal at octave intervals
+        if self.harmonics > 0:
+            harmonic_mix = np.zeros_like(output)
+            for harmonic in range(2, 5):  # Add 2nd, 3rd, and 4th harmonics
+                harmonic_cutoff = min(0.99, self.cutoff * harmonic)
+                w0 = 2.0 * np.pi * (cutoff_freq * harmonic) / self.sample_rate
+                cosw0 = np.cos(w0)
+                alpha = np.sin(w0) / (2.0 * (1.0 - self.resonance))
+                
+                # Recalculate coefficients for harmonic
+                a0 = 1.0 + alpha
+                a1 = -2.0 * cosw0 / a0
+                a2 = (1.0 - alpha) / a0
+                b0 = (1.0 - cosw0) / (2.0 * a0)
+                b1 = (1.0 - cosw0) / a0
+                b2 = (1.0 - cosw0) / (2.0 * a0)
+                
+                # Process harmonic
+                harm_output = np.zeros_like(output)
+                z1h, z2h = 0.0, 0.0
+                for i in range(len(output)):
+                    harm_output[i] = b0 * output[i] + b1 * z1h + b2 * z2h - a1 * z1h - a2 * z2h
+                    z2h = z1h
+                    z1h = output[i]
+                
+                harmonic_mix += harm_output * (0.5 ** harmonic)  # Decrease amplitude for higher harmonics
+            
+            # Mix in harmonics
+            output = output + harmonic_mix * self.harmonics
+        
         return output
 
 class ADSR:

@@ -71,6 +71,7 @@ def main():
         
         # Select MIDI device
         midi_device = select_midi_device()
+        print(f"Selected MIDI device: {midi_device}")  # Debugging statement
         
         # Create synth with forced Realtek device
         synth = Synthesizer(device=output_device)
@@ -87,6 +88,7 @@ def main():
         
         # Connect MIDI callbacks
         def midi_callback(event_type, note, velocity):
+            print(f"MIDI callback: {event_type}, Note: {note}, Velocity: {velocity}")  # Debugging statement
             if event_type == 'note_on':
                 synth.note_on(note, velocity)
             elif event_type == 'note_off':
