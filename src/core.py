@@ -1,51 +1,18 @@
-"""
-Core Synthesizer Engine
-----------------------
-Main audio processing and voice management system.
-
-Features:
-- Polyphonic voice handling with voice stealing
-- Real-time audio generation
-- Thread-safe parameter control
-- Audio device management
-- Buffer management and streaming
-- Voice allocation and note tracking
-- Exception handling and error recovery
-
-Audio Processing Chain:
-1. Note events → Voice allocation
-2. Oscillator generation
-3. ADSR envelope application
-4. Filter processing
-5. Voice mixing
-6. Safety processing
-7. Output streaming
-
-Key Functions:
-- Voice allocation and stealing
-- Audio buffer generation
-- Real-time parameter processing
-- Thread-safe state management
-
-Classes:
-    Voice: Individual voice state and processing
-    Synthesizer: Main synthesis engine
-"""
+"""Core Synthesizer Engine"""
 
 import numpy as np
 import sounddevice as sd
 from threading import Lock
 from audio import Oscillator, Filter, ADSR
 from config import AUDIO_CONFIG, STATE
-from debug import DEBUG
+from debug import DEBUG  # Add this import
 
 class Voice:
     def __init__(self):
         self.note = None
         self.velocity = 0
         self.active = False
-        self.oscillators = [Oscillator() for _ in range(4)]  # Create 4 oscillators
-        self.filter = Filter()
+        self.oscillators = [Oscillator() for _ in range(4)]
         self.adsr = ADSR()
 
     def reset(self):
@@ -68,10 +35,7 @@ class Voice:
                 detune = STATE.osc_detune[i]
                 osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
                 output += osc_output * STATE.osc_mix[i] * self.velocity
-        # Disable filter processing
-        # output = self.filter.process(output) * adsr_output
-        output *= adsr_output
-        return output
+        return output * adsr_output
 
 class Synthesizer:
     def __init__(self, device=None):
@@ -80,22 +44,19 @@ class Synthesizer:
         self.lock = Lock()
         self.device = device
         self.samplerate = AUDIO_CONFIG.SAMPLE_RATE
-        
+
     def start(self):
-        try:
-            self.stream = sd.OutputStream(
-                device=self.device,
-                channels=1,
-                samplerate=self.samplerate,
-                blocksize=AUDIO_CONFIG.BUFFER_SIZE,
-                dtype='float32',
-                callback=self._audio_callback
-            )
-            self.stream.start()
-            print("Audio stream started")
-        except Exception as e:
-            print(f"Audio error: {e}")
-            raise
+        print("Starting audio stream...")
+        self.stream = sd.OutputStream(
+            device=self.device,
+            channels=1,
+            samplerate=self.samplerate,
+            blocksize=AUDIO_CONFIG.BUFFER_SIZE,
+            dtype='float32',
+            callback=self._audio_callback
+        )
+        self.stream.start()
+        print("Audio stream started successfully")
             
     def stop(self):
         if self.stream:
@@ -106,6 +67,7 @@ class Synthesizer:
         with self.lock:
             voice = self._find_free_voice()
             if voice:
+                print(f"Note On: {note}, Velocity: {velocity}")
                 voice.note = note
                 voice.velocity = velocity / 127.0
                 voice.active = True
@@ -116,48 +78,52 @@ class Synthesizer:
                     STATE.adsr['release']
                 )
                 voice.adsr.gate_on()
-                print(f"Voice assigned: note={note} velocity={velocity}")
                 
     def note_off(self, note: int):
         with self.lock:
             for voice in self.voices:
                 if voice.note == note:
                     voice.adsr.gate_off()
-                    print(f"Voice released: note={note}")
                     break
             
     def _find_free_voice(self):
         for voice in self.voices:
             if not voice.active:
                 return voice
-        # If no free voice, use voice stealing (replace the oldest active voice)
         return min(self.voices, key=lambda v: v.note if v.active else float('inf'))
             
     def _audio_callback(self, outdata: np.ndarray, frames: int, time_info, status):
-        """Real-time audio callback
-        
-        Args:
-            outdata: Buffer to fill with audio samples (numpy array)
-            frames: Number of frames to generate
-            time_info: Timing information from audio driver
-            status: Status flags from audio driver
-        """
         try:
             with self.lock:
-                # Initialize output buffer
                 output = np.zeros(frames, dtype='float32')
-                
-                # Mix audio from all active voices
+                active_count = 0
                 for voice in self.voices:
                     if voice.active:
-                        output += voice.process(frames)
+                        try:
+                            voice_output = voice.process(frames)
+                            if np.any(voice_output != 0):
+                                active_count += 1
+                                output += voice_output
+                        except Exception as ve:
+                            print(f"Voice processing error: {ve}")
                 
-                # Monitor the output signal
-                DEBUG.monitor_signal('audio_out', output)
-                
-                # Write to output buffer
-                outdata[:] = output.reshape(-1, 1)  # Mono output
+                # Normalize and apply gain/pan
+                if active_count > 0:
+                    output = np.clip(output / max(1.0, active_count), -1.0, 1.0)
+                    output = output * STATE.master_gain  # Apply gain
+                    
+                    # Apply panning (if stereo output is enabled)
+                    if outdata.shape[1] == 2:
+                        left = output * (1.0 - max(0, STATE.master_pan))
+                        right = output * (1.0 + min(0, STATE.master_pan))
+                        output = np.vstack((left, right)).T
+                    else:
+                        output = output.reshape(-1, 1)
+                    
+                    DEBUG.monitor_signal('audio_out', output)
+                    
+                outdata[:] = output
                 
         except Exception as e:
             print(f"Audio callback error: {e}")
-            outdata.fill(0)  # Safety: output silence on error
+            outdata.fill(0)

@@ -13,7 +13,6 @@ from core import Synthesizer
 from midi import MIDIHandler
 from gui import create_gui
 from debug import DEBUG
-import signal
 
 def force_realtek_device():
     devices = sd.query_devices()
@@ -93,15 +92,6 @@ def main():
         
         # Start MIDI handling
         midi.start(midi_callback)
-        
-        def signal_handler(sig, frame):
-            print("Stopping...")
-            synth.stop()
-            midi.stop()
-            gui.stop()
-            root.quit()
-        
-        signal.signal(signal.SIGINT, signal_handler)
         
         try:
             # Start GUI main loop

@@ -1,45 +1,14 @@
-"""
-Audio Processing Modules
-----------------------
-DSP components for sound generation and processing.
-
-Features:
-1. Oscillators:
-   - Multiple waveforms (sine, saw, triangle, pulse)
-   - Phase continuity
-   - Frequency calculation from MIDI notes
-   - Waveform caching for performance
-   - Detuning support
-
-2. Filters:
-   - Low-pass filter implementation
-   - Resonance control
-   - Zero-delay feedback
-   - Real-time parameter modulation
-
-3. ADSR Envelope:
-   - Attack, Decay, Sustain, Release stages
-   - Sample-accurate timing
-   - Gate control
-   - Smooth transitions
-
-4. Safety Features:
-   - DC offset removal
-   - Output limiting
-   - Signal normalization
-"""
+"""Audio Processing Modules"""
 
 import numpy as np
 
 class Oscillator:
     def __init__(self):
         self.phase = 0.0
-        self.cache = {}  # Cache for waveforms
         
     def generate(self, frequency: float, waveform: str, samples: int, detune: float = 0.0) -> np.ndarray:
-        """Generate waveform with phase continuity and caching"""
         self.phase = self.phase % (2 * np.pi)
-        detuned_frequency = frequency * (2 ** (detune / 12.0))  # Apply detune in semitones
+        detuned_frequency = frequency * (2 ** (detune / 12.0))
         t = np.linspace(self.phase, 
                        self.phase + 2 * np.pi * detuned_frequency * samples / 44100, 
                        samples, 
@@ -54,10 +23,10 @@ class Oscillator:
         elif waveform == 'pulse':
             output = np.where(t % (2 * np.pi) < np.pi, 1.0, -1.0)
         else:
-            output = np.sin(t)  # Default to sine
+            output = np.sin(t)
             
         self.phase = t[-1]
-        return output * 0.5  # Safety amplitude
+        return output  # Remove the 0.5 amplitude reduction for stronger signal
 
 class Filter:
     def __init__(self):

@@ -166,11 +166,27 @@ class SynthesizerGUI:
         self.spectrum_line, = self.spectrum_ax.plot([], [], lw=1, color='red')
 
     def create_level_visualizer(self):
-        frame = ttk.LabelFrame(self.main_frame, text="Audio Level", padding=(10, 5))
+        frame = ttk.LabelFrame(self.main_frame, text="Master", padding=(10, 5))
         frame.grid(row=0, column=3, rowspan=2, padx=5, pady=5, sticky="nsew")
         
+        # Level meter
+        ttk.Label(frame, text="Level").grid(row=0, column=0)
         self.level_meter = ttk.Progressbar(frame, orient="vertical", length=200, mode="determinate")
-        self.level_meter.grid(row=0, column=0, padx=5, pady=5)
+        self.level_meter.grid(row=1, column=0, padx=5, pady=5)
+
+        # Gain control
+        ttk.Label(frame, text="Gain").grid(row=0, column=1)
+        self.gain_slider = ttk.Scale(frame, from_=2.0, to=0.0, length=200, orient="vertical")
+        self.gain_slider.set(STATE.master_gain)
+        self.gain_slider.grid(row=1, column=1, padx=5, pady=5)
+        self.gain_slider.configure(command=self._update_gain)
+
+        # Pan control
+        ttk.Label(frame, text="Pan").grid(row=0, column=2)
+        self.pan_slider = ttk.Scale(frame, from_=1.0, to=-1.0, length=200, orient="vertical")
+        self.pan_slider.set(STATE.master_pan)
+        self.pan_slider.grid(row=1, column=2, padx=5, pady=5)
+        self.pan_slider.configure(command=self._update_pan)
 
     def _update_osc_mix(self, value, index):
         STATE.osc_mix[index] = float(value)
@@ -196,31 +212,37 @@ class SynthesizerGUI:
     def _update_adsr(self, param, value):
         STATE.adsr[param] = float(value)
 
+    def _update_gain(self, value):
+        STATE.master_gain = float(value)
+
+    def _update_pan(self, value):
+        STATE.master_pan = float(value)
+
     def _update_visualization(self):
         """Update waveform and spectrum visualization"""
         signal_data = DEBUG.get_signal_data('audio_out')
-        if signal_data:
+        if len(signal_data) > 0 and not np.all(signal_data == 0):
             self._draw_waveform(signal_data)
             self._draw_spectrum(signal_data)
             self._update_level_meter(signal_data)
 
     def _draw_waveform(self, data):
-        self.waveform_line.set_data(np.arange(len(data)), data)
-        self.waveform_ax.set_xlim(0, len(data))
-        self.waveform_ax.set_ylim(-1, 1)  # Center the waveform vertically
-        self.waveform_canvas.draw()
+        if len(data) > 0:
+            self.waveform_line.set_data(np.arange(len(data)), data)
+            self.waveform_canvas.draw()
 
     def _draw_spectrum(self, data):
-        spectrum = np.abs(np.fft.fft(data))[:len(data)//2]
-        spectrum = spectrum / np.max(spectrum) * 200  # Normalize to fit within 0-200 range
-        self.spectrum_line.set_data(np.arange(len(spectrum)), spectrum)
-        self.spectrum_ax.set_xlim(0, len(spectrum))
-        self.spectrum_ax.set_ylim(0, 200)  # Center the spectrum vertically
-        self.spectrum_canvas.draw()
+        if len(data) > 0:
+            spectrum = np.abs(np.fft.fft(data))[:len(data)//2]
+            if np.max(spectrum) > 0:
+                spectrum = spectrum / np.max(spectrum) * 200
+            self.spectrum_line.set_data(np.arange(len(spectrum)), spectrum)
+            self.spectrum_canvas.draw()
 
     def _update_level_meter(self, data):
-        peak_level = np.max(np.abs(data))
-        self.level_meter['value'] = peak_level * 100
+        if len(data) > 0:
+            peak_level = np.max(np.abs(data)) * 100
+            self.level_meter['value'] = min(100, peak_level)
 
     def _update_gui_elements(self):
         """Update GUI elements to reflect current STATE values"""
@@ -233,6 +255,8 @@ class SynthesizerGUI:
         self.filter_type.set(STATE.filter_type)
         for param, slider in self.adsr_sliders.items():
             slider.set(STATE.adsr[param])
+        self.gain_slider.set(STATE.master_gain)
+        self.pan_slider.set(STATE.master_pan)
 
     def _update_loop(self):
         update_interval = 1.0 / 30  # 30 FPS refresh rate
