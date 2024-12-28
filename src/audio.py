@@ -43,6 +43,62 @@ class Oscillator:
                        samples, 
                        endpoint=False)
         
-        output = np.sin(t)
+        if waveform == 'sine':
+            output = np.sin(t)
+        elif waveform == 'saw':
+            output = 2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))
+        elif waveform == 'triangle':
+            output = 2 * np.abs(2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))) - 1
+        elif waveform == 'pulse':
+            output = np.where(t % (2 * np.pi) < np.pi, 1.0, -1.0)
+        else:
+            output = np.sin(t)  # Default to sine
+            
         self.phase = t[-1]
-        return output * 0.5  # Safety amplitude reduction
+        return output * 0.5  # Safety amplitude
+
+# Unit tests for Oscillator class
+if __name__ == '__main__':
+    import unittest
+
+    class TestOscillator(unittest.TestCase):
+        def setUp(self):
+            self.oscillator = Oscillator()
+            
+        def test_sine_wave(self):
+            frequency = 440.0
+            samples = 44100
+            waveform = 'sine'
+            output = self.oscillator.generate(frequency, waveform, samples)
+            self.assertEqual(len(output), samples)
+            self.assertTrue(np.all(output <= 0.5))
+            self.assertTrue(np.all(output >= -0.5))
+            
+        def test_saw_wave(self):
+            frequency = 440.0
+            samples = 44100
+            waveform = 'saw'
+            output = self.oscillator.generate(frequency, waveform, samples)
+            self.assertEqual(len(output), samples)
+            self.assertTrue(np.all(output <= 0.5))
+            self.assertTrue(np.all(output >= -0.5))
+            
+        def test_triangle_wave(self):
+            frequency = 440.0
+            samples = 44100
+            waveform = 'triangle'
+            output = self.oscillator.generate(frequency, waveform, samples)
+            self.assertEqual(len(output), samples)
+            self.assertTrue(np.all(output <= 0.5))
+            self.assertTrue(np.all(output >= -0.5))
+            
+        def test_pulse_wave(self):
+            frequency = 440.0
+            samples = 44100
+            waveform = 'pulse'
+            output = self.oscillator.generate(frequency, waveform, samples)
+            self.assertEqual(len(output), samples)
+            self.assertTrue(np.all(output <= 0.5))
+            self.assertTrue(np.all(output >= -0.5))
+
+    unittest.main()

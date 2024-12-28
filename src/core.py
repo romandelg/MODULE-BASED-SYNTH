@@ -36,23 +36,27 @@ import numpy as np
 import sounddevice as sd
 from threading import Lock
 from audio import Oscillator
+from config import AUDIO_CONFIG, STATE
 
-# Minimal implementation of documented features
 class Voice:
     def __init__(self):
-        self.note = 0
+        self.note = None
         self.velocity = 0
         self.active = False
-        self.oscillator = Oscillator()
+        self.oscillators = [Oscillator() for _ in range(4)]  # Create 4 oscillators
 
-# Minimal synthesizer for testing audio output
+    def reset(self):
+        self.note = None
+        self.velocity = 0
+        self.active = False
+
 class Synthesizer:
     def __init__(self, device=None):
-        self.voice = Voice()  # Single voice only
+        self.voices = [Voice() for _ in range(AUDIO_CONFIG.MAX_VOICES)]
         self.stream = None
         self.lock = Lock()
         self.device = device
-        self.samplerate = 44100
+        self.samplerate = AUDIO_CONFIG.SAMPLE_RATE
         
     def start(self):
         try:
@@ -60,7 +64,7 @@ class Synthesizer:
                 device=self.device,
                 channels=1,
                 samplerate=self.samplerate,
-                blocksize=1024,
+                blocksize=AUDIO_CONFIG.BUFFER_SIZE,
                 dtype='float32',
                 callback=self._audio_callback
             )
@@ -77,18 +81,27 @@ class Synthesizer:
             
     def note_on(self, note: int, velocity: int):
         with self.lock:
-            print(f"Synth: Note ON - note:{note} vel:{velocity}")  # Debug print
-            self.voice.note = note
-            self.voice.velocity = velocity / 127.0
-            self.voice.active = True
-            print(f"Voice state: active={self.voice.active} note={self.voice.note}")  # Debug print
+            voice = self._find_free_voice()
+            if voice:
+                voice.note = note
+                voice.velocity = velocity / 127.0
+                voice.active = True
+                print(f"Voice assigned: note={note} velocity={velocity}")
                 
     def note_off(self, note: int):
         with self.lock:
-            print(f"Synth: Note OFF - note:{note}")  # Debug print
-            if self.voice.note == note:
-                self.voice.active = False
-                print(f"Voice state: active={self.voice.active}")  # Debug print
+            for voice in self.voices:
+                if voice.note == note:
+                    voice.reset()
+                    print(f"Voice released: note={note}")
+                    break
+            
+    def _find_free_voice(self):
+        for voice in self.voices:
+            if not voice.active:
+                return voice
+        # If no free voice, use voice stealing (replace the oldest active voice)
+        return min(self.voices, key=lambda v: v.note if v.active else float('inf'))
             
     def _audio_callback(self, outdata: np.ndarray, frames: int, time_info, status):
         """Real-time audio callback
@@ -101,20 +114,20 @@ class Synthesizer:
         """
         try:
             with self.lock:
-                # 1. Initialize output buffer
+                # Initialize output buffer
                 output = np.zeros(frames, dtype='float32')
                 
-                # 2. Check if we need to generate audio
-                if not self.voice.active:
-                    outdata.fill(0)  # Silence if no active voice
-                    return
+                # Mix audio from all active voices
+                for voice in self.voices:
+                    if voice.active:
+                        frequency = 440.0 * (2.0 ** ((voice.note - 69) / 12.0))  # MIDI to frequency
+                        for i, osc in enumerate(voice.oscillators):
+                            if STATE.osc_mix[i] > 0.001:  # Only process if mix level is significant
+                                detune_freq = frequency * (2 ** (STATE.osc_detune[i] / 12))
+                                osc_output = osc.generate(detune_freq, STATE.osc_waveforms[i], frames)
+                                output += osc_output * STATE.osc_mix[i] * voice.velocity
                 
-                # 3. Generate audio
-                frequency = 440.0 * (2.0 ** ((self.voice.note - 69) / 12.0))  # MIDI to frequency
-                output = self.voice.oscillator.generate(frequency, 'sine', frames)  # Generate waveform
-                output *= self.voice.velocity  # Apply velocity scaling
-                
-                # 4. Write to output buffer
+                # Write to output buffer
                 outdata[:] = output.reshape(-1, 1)  # Mono output
                 
         except Exception as e:
