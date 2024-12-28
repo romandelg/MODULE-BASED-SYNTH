@@ -43,8 +43,15 @@ from lfo import LFO  # Import the LFO class
 class SynthesizerGUI:
     """GUI for controlling and visualizing the synthesizer parameters"""
     
-    def __init__(self, master: tk.Tk):
+    def __init__(self, master: tk.Tk, synth):
+        # Initialize all dictionaries first
+        self.chain_status = {}
+        self.chain_enables = {}
+        self.chain_bypasses = {}
+        self.signal_flow_indicators = {}
+        self.signal_levels = {}
         self.master = master
+        self.synth = synth  # Store the synth instance
         self.master.title("Modular Synthesizer")
         self.master.configure(bg='#2e2e2e')
         self.update_lock = Lock()
@@ -68,9 +75,13 @@ class SynthesizerGUI:
         self.create_oscillator_frame()
         self.create_filter_frame()
         self.create_adsr_frame()
-        self.create_master_frame()  # New container for master controls
+        self.create_master_frame()
+        self.create_signal_chain_frame()
         self.create_visualization_frame()
         self.create_lfo_controls()
+        self.create_signal_chain_visualization()
+        self.create_input_source_frame()
+        self.create_sequencer_frame()
         
         self.update_interval = 1.0 / 60  # Increase to 60 FPS
         
@@ -366,6 +377,16 @@ class SynthesizerGUI:
             self.lfo_frequency.set(STATE.lfo_frequency)
             self.lfo_depth.set(STATE.lfo_depth)
             
+            # Update chain status indicators only for existing modules
+            for module in self.chain_status.keys():
+                try:
+                    self._update_chain_status(module)
+                except Exception as e:
+                    print(f"Error updating chain status for {module}: {e}")
+            
+            # Update signal flow visualization
+            self._update_signal_flow()
+                
         except tk.TclError as e:
             print(f"Error updating GUI elements: {e}")
 
@@ -441,6 +462,81 @@ class SynthesizerGUI:
         self.pan_slider.grid(row=1, column=2, padx=5, pady=5)
         self.pan_slider.configure(command=self._update_pan)
 
+    def create_signal_chain_frame(self):
+        """Create signal chain control panel with status indicators"""
+        frame = ttk.LabelFrame(self.main_frame, text="Signal Chain", padding=(10, 5))
+        frame.grid(row=1, column=2, padx=5, pady=5, sticky="nsew")
+        
+        # Header labels
+        ttk.Label(frame, text="Module").grid(row=0, column=0, padx=5, sticky='w')
+        ttk.Label(frame, text="Enable").grid(row=0, column=1, padx=5)
+        ttk.Label(frame, text="Bypass").grid(row=0, column=2, padx=5)
+        ttk.Label(frame, text="Status").grid(row=0, column=3, padx=5)
+        
+        # Define all modules
+        modules = [
+            ('Signal', 'signal'),
+            ('Oscillators', 'oscillators'),
+            ('Mixer', 'mixer'),
+            ('Envelope', 'envelope'),
+            ('Filter', 'filter'),
+            ('LFO', 'lfo'),
+            ('Effects', 'effects'),
+            ('Amp', 'amp')
+        ]
+        
+        # Create controls for each module
+        for i, (label, key) in enumerate(modules):
+            row = i + 1
+            
+            # Module label
+            ttk.Label(frame, text=label).grid(row=row, column=0, padx=5, sticky='w')
+            
+            # Enable toggle
+            enable_var = tk.BooleanVar(value=STATE.chain_enabled[key])
+            enable = ttk.Checkbutton(frame, variable=enable_var,
+                                   command=lambda k=key, v=enable_var: self._toggle_chain_enable(k, v))
+            enable.grid(row=row, column=1, padx=5)
+            self.chain_enables[key] = enable_var
+            
+            # Bypass toggle
+            bypass_var = tk.BooleanVar(value=STATE.chain_bypass[key])
+            bypass = ttk.Checkbutton(frame, variable=bypass_var,
+                                   command=lambda k=key, v=bypass_var: self._toggle_chain_bypass(k, v))
+            bypass.grid(row=row, column=2, padx=5)
+            self.chain_bypasses[key] = bypass_var
+            
+            # Status indicator
+            status = ttk.Label(frame, text="●", foreground='gray')
+            status.grid(row=row, column=3, padx=5)
+            self.chain_status[key] = status
+
+    def _set_input_source(self, source):
+        """Switch between MIDI and sequencer input"""
+        STATE.input_source = source
+        print(f"Input source changed to: {source}")
+        self._update_chain_status('signal')
+
+    def _update_chain_status(self, module):
+        """Update the visual status indicator with colors"""
+        try:
+            if module in self.chain_status:
+                if not STATE.chain_enabled[module]:
+                    color = 'gray'      # Disabled
+                elif STATE.chain_bypass[module]:
+                    color = 'yellow'    # Bypassed
+                else:
+                    color = '#00ff00'   # Active (bright green)
+                    
+                if module == 'signal':
+                    # Add input source indicator to signal module
+                    source_indicator = '(M)' if STATE.input_source == 'midi' else '(S)'
+                    self.chain_status[module].configure(text=f"● {source_indicator}", foreground=color)
+                else:
+                    self.chain_status[module].configure(text="●", foreground=color)
+        except (KeyError, tk.TclError) as e:
+            print(f"Error updating chain status for {module}: {e}")
+
     def create_lfo_controls(self):
         """Create controls for the LFO settings and routing"""
         frame = ttk.LabelFrame(self.main_frame, text="LFO", padding=(10, 5))
@@ -509,8 +605,167 @@ class SynthesizerGUI:
             self.lfo.bypass()
             self.lfo_bypass_button.configure(text="Enable")
 
-def create_gui():
+    def create_signal_chain_visualization(self):
+        """Create visual representation of the signal chain flow"""
+        frame = ttk.LabelFrame(self.main_frame, text="Signal Flow", padding=(10, 5))
+        frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
+
+        # Configure styles first
+        style = ttk.Style()
+        style.configure('Box.TFrame', relief='solid', borderwidth=1)
+        style.configure('Active.TLabel', foreground='#00ff00')
+        style.configure('Inactive.TLabel', foreground='gray')
+        style.configure('Bypassed.TLabel', foreground='yellow')
+
+        # Signal chain modules in order
+        modules = [
+            ('Input', 'signal'),
+            ('OSC', 'oscillators'),
+            ('MIX', 'mixer'),
+            ('ENV', 'envelope'),
+            ('FLT', 'filter'),
+            ('LFO', 'lfo'),
+            ('FX', 'effects'),
+            ('AMP', 'amp')
+        ]
+
+        # Create the flow visualization
+        for i, (label, key) in enumerate(modules):
+            module_frame = ttk.Frame(frame)
+            module_frame.grid(row=0, column=i*2, padx=5)
+
+            # Module box with border
+            box_frame = ttk.Frame(module_frame, style='Box.TFrame')
+            box_frame.grid(row=0, column=0, pady=2)
+
+            # Module label
+            ttk.Label(box_frame, text=label).grid(row=0, column=0, padx=5, pady=2)
+
+            # Activity indicator
+            indicator = ttk.Label(box_frame, text="●", foreground='gray')
+            indicator.grid(row=1, column=0, padx=5, pady=2)
+            self.signal_flow_indicators[key] = indicator
+
+            # Bypass toggle
+            bypass_var = tk.BooleanVar(value=STATE.chain_bypass[key])
+            ttk.Checkbutton(module_frame, text="Bypass", 
+                           variable=bypass_var,
+                           command=lambda k=key, v=bypass_var: self._toggle_chain_bypass(k, v)).grid(
+                row=1, column=0, pady=2)
+
+            # Draw arrow to next module (except for last module)
+            if i < len(modules) - 1:
+                ttk.Label(frame, text="→").grid(row=0, column=i*2 + 1)
+
+    def _update_signal_flow(self):
+        """Update signal flow visualization"""
+        try:
+            for module, indicator in self.signal_flow_indicators.items():
+                if not STATE.chain_enabled[module]:
+                    color = 'gray'  # Disabled
+                    text = "●"
+                elif STATE.chain_bypass[module]:
+                    color = 'yellow'  # Bypassed
+                    text = "○"
+                else:
+                    # Check if module is receiving signal
+                    has_signal = self._check_module_signal(module)
+                    color = '#00ff00' if has_signal else '#666666'  # Green if active with signal
+                    text = "●"
+                
+                indicator.configure(text=text, foreground=color)
+        except Exception as e:
+            print(f"Error updating signal flow: {e}")
+
+    def _check_module_signal(self, module):
+        """Check if a module is receiving signal"""
+        if module == 'signal':
+            return STATE.input_source in ['midi', 'sequencer']
+        elif module == 'oscillators':
+            return any(v.active for v in self.synth.voices) if hasattr(self.synth, 'voices') else False
+        elif module in ['mixer', 'envelope', 'filter', 'effects', 'amp']:
+            # Check previous module in chain
+            chain_order = ['signal', 'oscillators', 'mixer', 'envelope', 'filter', 'effects', 'amp']
+            idx = chain_order.index(module)
+            if idx > 0:
+                prev_module = chain_order[idx - 1]
+                return (STATE.chain_enabled[prev_module] and 
+                       not STATE.chain_bypass[prev_module] and 
+                       self._check_module_signal(prev_module))
+        return False
+
+    def create_input_source_frame(self):
+        """Create the input source selection frame"""
+        frame = ttk.LabelFrame(self.main_frame, text="Input Source", padding=(10, 5))
+        frame.grid(row=2, column=2, padx=5, pady=5, sticky="nsew")
+        
+        self.input_source_var = tk.StringVar(value=STATE.input_source)
+        
+        midi_button = ttk.Radiobutton(frame, text="MIDI", variable=self.input_source_var, value='midi', command=self._set_input_source)
+        midi_button.grid(row=0, column=0, padx=5, pady=5)
+        
+        seq_button = ttk.Radiobutton(frame, text="Sequencer", variable=self.input_source_var, value='sequencer', command=self._set_input_source)
+        seq_button.grid(row=0, column=1, padx=5, pady=5)
+
+    def _set_input_source(self):
+        """Switch between MIDI and sequencer input"""
+        STATE.input_source = self.input_source_var.get()
+        print(f"Input source changed to: {STATE.input_source}")
+        self._update_chain_status('signal')
+
+    def create_sequencer_frame(self):
+        """Create the sequencer control frame"""
+        frame = ttk.LabelFrame(self.main_frame, text="Sequencer", padding=(10, 5))
+        frame.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        
+        # Sequencer controls
+        ttk.Label(frame, text="Tempo (BPM)").grid(row=0, column=0, padx=5, pady=5)
+        self.tempo_slider = ttk.Scale(frame, from_=30, to=300, orient="horizontal", command=self._update_sequencer_tempo)
+        self.tempo_slider.set(120)  # Default tempo
+        self.tempo_slider.grid(row=0, column=1, padx=5, pady=5)
+        
+        ttk.Label(frame, text="Notes").grid(row=1, column=0, padx=5, pady=5)
+        self.note_entries = []
+        for i in range(8):
+            entry = ttk.Entry(frame, width=5)
+            entry.grid(row=1, column=i+1, padx=2, pady=2)
+            self.note_entries.append(entry)
+        
+        self.update_notes_button = ttk.Button(frame, text="Update Notes", command=self._update_sequencer_notes)
+        self.update_notes_button.grid(row=2, column=0, columnspan=2, padx=5, pady=5)
+        
+        self.toggle_sequencer_button = ttk.Button(frame, text="Start Sequencer", command=self._toggle_sequencer)
+        self.toggle_sequencer_button.grid(row=2, column=2, columnspan=2, padx=5, pady=5)
+
+    def _update_sequencer_tempo(self, value):
+        """Update sequencer tempo"""
+        bpm = float(value)
+        self.synth.set_sequencer_tempo(bpm)
+        print(f"Sequencer tempo set to: {bpm} BPM")
+
+    def _update_sequencer_notes(self):
+        """Update sequencer notes"""
+        notes = []
+        for entry in self.note_entries:
+            try:
+                note = int(entry.get())
+                notes.append(note)
+            except ValueError:
+                continue
+        self.synth.set_sequencer_notes(notes)
+        print(f"Sequencer notes updated to: {notes}")
+
+    def _toggle_sequencer(self):
+        """Toggle the sequencer on and off"""
+        if STATE.sequencer_enabled:
+            self.synth.toggle_sequencer(False)
+            self.toggle_sequencer_button.configure(text="Start Sequencer")
+        else:
+            self.synth.toggle_sequencer(True)
+            self.toggle_sequencer_button.configure(text="Stop Sequencer")
+
+def create_gui(synth):
     """Create and return the main GUI window"""
     root = tk.Tk()
-    gui = SynthesizerGUI(root)
+    gui = SynthesizerGUI(root, synth)
     return root, gui

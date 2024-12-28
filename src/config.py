@@ -49,6 +49,34 @@ class ModuleState:
         self.lfo_waveform = 'sine'
         self.lfo_offset = 0.0
         self.lfo_depth = 1.0  # Initialize with default depth
+        
+        # Signal chain settings
+        self.input_source = 'midi'  # Add before chain_enabled
+        self.sequencer_enabled = False
+        self.sequencer_notes = [60, 64, 67, 72]  # C4, E4, G4, C5
+        
+        # Chain states
+        self.chain_enabled = {
+            'signal': True,
+            'oscillators': True,
+            'mixer': True,
+            'envelope': True,
+            'filter': True,
+            'lfo': True,
+            'effects': False,
+            'amp': True
+        }
+        
+        self.chain_bypass = {
+            'signal': False,
+            'oscillators': False,
+            'mixer': False,
+            'envelope': False,
+            'filter': False,
+            'lfo': False,
+            'effects': True,
+            'amp': False
+        }
 
 # Global configuration instances
 AUDIO_CONFIG = AudioConfig()

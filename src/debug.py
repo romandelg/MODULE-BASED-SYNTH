@@ -28,7 +28,11 @@ class SignalMonitor:
 class DebugSystem:
     def __init__(self):
         self.signal_monitors = {
-            'audio_out': SignalMonitor()
+            'audio_out': SignalMonitor(),
+            'pre_filter': SignalMonitor(),
+            'post_filter': SignalMonitor(),
+            'lfo': SignalMonitor(),
+            'adsr': SignalMonitor()
         }
         
     def monitor_signal(self, name: str, values: np.ndarray):

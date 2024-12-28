@@ -80,7 +80,7 @@ def main():
         midi = MIDIHandler(midi_device)
         
         # Create GUI
-        root, gui = create_gui()
+        root, gui = create_gui(synth)  # Pass the synth instance
         
         # Start the synth engine
         synth.start()
