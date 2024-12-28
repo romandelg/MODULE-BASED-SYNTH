@@ -34,12 +34,14 @@ import numpy as np
 class Oscillator:
     def __init__(self):
         self.phase = 0.0
+        self.cache = {}  # Cache for waveforms
         
-    def generate(self, frequency: float, waveform: str, samples: int) -> np.ndarray:
-        """Generate a basic sine wave with phase continuity"""
+    def generate(self, frequency: float, waveform: str, samples: int, detune: float = 0.0) -> np.ndarray:
+        """Generate waveform with phase continuity and caching"""
         self.phase = self.phase % (2 * np.pi)
+        detuned_frequency = frequency * (2 ** (detune / 12.0))  # Apply detune in semitones
         t = np.linspace(self.phase, 
-                       self.phase + 2 * np.pi * frequency * samples / 44100, 
+                       self.phase + 2 * np.pi * detuned_frequency * samples / 44100, 
                        samples, 
                        endpoint=False)
         
@@ -97,6 +99,16 @@ if __name__ == '__main__':
             samples = 44100
             waveform = 'pulse'
             output = self.oscillator.generate(frequency, waveform, samples)
+            self.assertEqual(len(output), samples)
+            self.assertTrue(np.all(output <= 0.5))
+            self.assertTrue(np.all(output >= -0.5))
+
+        def test_detune(self):
+            frequency = 440.0
+            samples = 44100
+            waveform = 'sine'
+            detune = 1.0  # One semitone up
+            output = self.oscillator.generate(frequency, waveform, samples, detune)
             self.assertEqual(len(output), samples)
             self.assertTrue(np.all(output <= 0.5))
             self.assertTrue(np.all(output >= -0.5))

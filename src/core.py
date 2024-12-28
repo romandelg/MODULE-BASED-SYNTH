@@ -123,8 +123,8 @@ class Synthesizer:
                         frequency = 440.0 * (2.0 ** ((voice.note - 69) / 12.0))  # MIDI to frequency
                         for i, osc in enumerate(voice.oscillators):
                             if STATE.osc_mix[i] > 0.001:  # Only process if mix level is significant
-                                detune_freq = frequency * (2 ** (STATE.osc_detune[i] / 12))
-                                osc_output = osc.generate(detune_freq, STATE.osc_waveforms[i], frames)
+                                detune = STATE.osc_detune[i]
+                                osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
                                 output += osc_output * STATE.osc_mix[i] * voice.velocity
                 
                 # Write to output buffer
