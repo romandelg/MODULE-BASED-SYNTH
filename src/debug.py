@@ -92,11 +92,24 @@ class DebugSystem:
         self.perf_monitor.add_measurement(duration)
         logging.debug(f"{label}: {duration*1000:.2f}ms")
         
+    def log_info(self, message: str):
+        """Log information message"""
+        logging.info(message)
+        
+    def log_debug(self, message: str):
+        """Log debug message"""
+        logging.debug(message)
+        
     def log_error(self, message: str, exception: Exception = None):
+        """Log error message with optional exception"""
         if exception:
             logging.error(f"{message}: {str(exception)}")
         else:
             logging.error(message)
+        
+    def log_warning(self, message: str):
+        """Log warning message"""
+        logging.warning(message)
             
     def monitor_signal(self, name: str, value: float):
         if name in self.signal_monitors:

@@ -91,28 +91,32 @@ class Synthesizer:
                 print(f"Voice state: active={self.voice.active}")  # Debug print
             
     def _audio_callback(self, outdata: np.ndarray, frames: int, time_info, status):
+        """Real-time audio callback
+        
+        Args:
+            outdata: Buffer to fill with audio samples (numpy array)
+            frames: Number of frames to generate
+            time_info: Timing information from audio driver
+            status: Status flags from audio driver
+        """
         try:
             with self.lock:
-                # Debug print voice state
-                if self.voice.active:
-                    print(f"Processing active voice: note={self.voice.note} vel={self.voice.velocity}")
+                # 1. Initialize output buffer
+                output = np.zeros(frames, dtype='float32')
                 
+                # 2. Check if we need to generate audio
                 if not self.voice.active:
-                    outdata.fill(0)
+                    outdata.fill(0)  # Silence if no active voice
                     return
-                    
-                # Generate audio
-                frequency = 440.0 * (2.0 ** ((self.voice.note - 69) / 12.0))
-                output = self.voice.oscillator.generate(frequency, 'sine', frames)
-                output *= self.voice.velocity
                 
-                # Write to output buffer
-                outdata[:] = output.reshape(-1, 1)
+                # 3. Generate audio
+                frequency = 440.0 * (2.0 ** ((self.voice.note - 69) / 12.0))  # MIDI to frequency
+                output = self.voice.oscillator.generate(frequency, 'sine', frames)  # Generate waveform
+                output *= self.voice.velocity  # Apply velocity scaling
                 
-                # Debug print audio output
-                if np.any(output):
-                    print(f"Audio output: min={np.min(output):.3f} max={np.max(output):.3f}")
+                # 4. Write to output buffer
+                outdata[:] = output.reshape(-1, 1)  # Mono output
                 
         except Exception as e:
             print(f"Audio callback error: {e}")
-            outdata.fill(0)
+            outdata.fill(0)  # Safety: output silence on error
