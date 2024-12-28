@@ -43,39 +43,37 @@ class SynthesizerGUI:
     def __init__(self, master: tk.Tk):
         self.master = master
         self.master.title("Modular Synthesizer")
+        self.master.configure(bg='#2e2e2e')
         self.update_lock = Lock()
         self.running = True
         
+        # Apply dark mode style
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure('TFrame', background='#2e2e2e')
+        style.configure('TLabel', background='#2e2e2e', foreground='#ffffff')
+        style.configure('TButton', background='#4e4e4e', foreground='#ffffff')
+        style.configure('TCombobox', fieldbackground='#4e4e4e', background='#4e4e4e', foreground='#ffffff')
+        style.configure('TScale', background='#2e2e2e', foreground='#ffffff')
+        style.configure('TProgressbar', background='#4e4e4e', foreground='#ffffff')
+        
         # Create main containers
-        self.create_scrollable_area()
+        self.create_main_frame()
         self.create_oscillator_frame()
         self.create_filter_frame()
         self.create_adsr_frame()
         self.create_visualization_frame()
+        self.create_level_visualizer()
         
         # Start update thread
         Thread(target=self._update_loop, daemon=True).start()
 
-    def create_scrollable_area(self):
-        self.canvas = tk.Canvas(self.master)
-        self.scrollbar = ttk.Scrollbar(self.master, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = ttk.Frame(self.canvas)
-
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(
-                scrollregion=self.canvas.bbox("all")
-            )
-        )
-
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
+    def create_main_frame(self):
+        self.main_frame = ttk.Frame(self.master)
+        self.main_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
     def create_oscillator_frame(self):
-        frame = ttk.LabelFrame(self.scrollable_frame, text="Oscillators")
+        frame = ttk.LabelFrame(self.main_frame, text="Oscillators", padding=(10, 5))
         frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
         self.osc_levels = []
@@ -85,12 +83,12 @@ class SynthesizerGUI:
             label = ttk.Label(frame, text=f"OSC {i+1}")
             label.grid(row=0, column=i, padx=2)
             
-            level = ttk.Progressbar(frame, orient="vertical", length=200, mode="determinate")
+            level = ttk.Progressbar(frame, orient="vertical", length=100, mode="determinate")
             level['value'] = STATE.osc_mix[i] * 100
             level.grid(row=1, column=i, padx=2, pady=2)
             self.osc_levels.append(level)
             
-            detune = ttk.Scale(frame, from_=1.0, to=-1.0, length=200, orient="vertical")
+            detune = ttk.Scale(frame, from_=1.0, to=-1.0, length=100, orient="vertical")
             detune.set(STATE.osc_detune[i])
             detune.grid(row=2, column=i, padx=2, pady=2)
             detune.configure(command=lambda val, idx=i: self._update_osc_detune(val, idx))
@@ -103,17 +101,17 @@ class SynthesizerGUI:
             self.osc_waveforms.append(waveform)
             
     def create_filter_frame(self):
-        frame = ttk.LabelFrame(self.scrollable_frame, text="Filter")
+        frame = ttk.LabelFrame(self.main_frame, text="Filter", padding=(10, 5))
         frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
         
         ttk.Label(frame, text="Cutoff").grid(row=0, column=0)
-        self.cutoff = ttk.Scale(frame, from_=1.0, to=0.0, length=200, orient="vertical")
+        self.cutoff = ttk.Scale(frame, from_=1.0, to=0.0, length=100, orient="vertical")
         self.cutoff.set(STATE.filter_cutoff)
         self.cutoff.grid(row=1, column=0, padx=2, pady=2)
         self.cutoff.configure(command=lambda val: self._update_filter_cutoff(val))
         
         ttk.Label(frame, text="Resonance").grid(row=0, column=1)
-        self.resonance = ttk.Scale(frame, from_=1.0, to=0.0, length=200, orient="vertical")
+        self.resonance = ttk.Scale(frame, from_=1.0, to=0.0, length=100, orient="vertical")
         self.resonance.set(STATE.filter_res)
         self.resonance.grid(row=1, column=1, padx=2, pady=2)
         self.resonance.configure(command=lambda val: self._update_filter_res(val))
@@ -125,39 +123,54 @@ class SynthesizerGUI:
         self.filter_type.bind("<<ComboboxSelected>>", self._update_filter_type)
         
     def create_adsr_frame(self):
-        frame = ttk.LabelFrame(self.scrollable_frame, text="ADSR")
-        frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
+        frame = ttk.LabelFrame(self.main_frame, text="ADSR", padding=(10, 5))
+        frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         self.adsr_sliders = {}
         for i, param in enumerate(['attack', 'decay', 'sustain', 'release']):
             ttk.Label(frame, text=param.capitalize()).grid(row=0, column=i)
-            slider = ttk.Scale(frame, from_=1.0, to=0.0, length=200, orient="vertical")
+            slider = ttk.Scale(frame, from_=1.0, to=0.0, length=100, orient="vertical")
             slider.set(STATE.adsr[param])
             slider.grid(row=1, column=i, padx=2, pady=2)
             slider.configure(command=lambda val, p=param: self._update_adsr(p, val))
             self.adsr_sliders[param] = slider
 
     def create_visualization_frame(self):
-        frame = ttk.LabelFrame(self.scrollable_frame, text="Signal Monitoring")
-        frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        frame = ttk.LabelFrame(self.main_frame, text="Signal Monitoring", padding=(10, 5))
+        frame.grid(row=0, column=2, rowspan=2, padx=5, pady=5, sticky="nsew")
         
         # Create waveform plot
-        self.waveform_fig, self.waveform_ax = plt.subplots(figsize=(5, 2))
+        self.waveform_fig, self.waveform_ax = plt.subplots(figsize=(3, 1.5))
+        self.waveform_fig.patch.set_facecolor('#2e2e2e')
+        self.waveform_ax.set_facecolor('#2e2e2e')
         self.waveform_canvas = FigureCanvasTkAgg(self.waveform_fig, master=frame)
         self.waveform_canvas.get_tk_widget().grid(row=0, column=0, padx=5, pady=5)
-        self.waveform_ax.set_title("Waveform")
+        self.waveform_ax.set_title("Waveform", color='white')
         self.waveform_ax.set_xlim(0, 1024)
         self.waveform_ax.set_ylim(-1, 1)
+        self.waveform_ax.tick_params(axis='x', colors='white')
+        self.waveform_ax.tick_params(axis='y', colors='white')
         self.waveform_line, = self.waveform_ax.plot([], [], lw=1, color='red')
         
         # Create spectrum plot
-        self.spectrum_fig, self.spectrum_ax = plt.subplots(figsize=(5, 2))
+        self.spectrum_fig, self.spectrum_ax = plt.subplots(figsize=(3, 1.5))
+        self.spectrum_fig.patch.set_facecolor('#2e2e2e')
+        self.spectrum_ax.set_facecolor('#2e2e2e')
         self.spectrum_canvas = FigureCanvasTkAgg(self.spectrum_fig, master=frame)
         self.spectrum_canvas.get_tk_widget().grid(row=1, column=0, padx=5, pady=5)
-        self.spectrum_ax.set_title("Spectrum")
+        self.spectrum_ax.set_title("Spectrum", color='white')
         self.spectrum_ax.set_xlim(0, 512)
         self.spectrum_ax.set_ylim(0, 200)  # Update y-axis limit to 200
+        self.spectrum_ax.tick_params(axis='x', colors='white')
+        self.spectrum_ax.tick_params(axis='y', colors='white')
         self.spectrum_line, = self.spectrum_ax.plot([], [], lw=1, color='red')
+
+    def create_level_visualizer(self):
+        frame = ttk.LabelFrame(self.main_frame, text="Audio Level", padding=(10, 5))
+        frame.grid(row=0, column=3, rowspan=2, padx=5, pady=5, sticky="nsew")
+        
+        self.level_meter = ttk.Progressbar(frame, orient="vertical", length=200, mode="determinate")
+        self.level_meter.grid(row=0, column=0, padx=5, pady=5)
 
     def _update_osc_mix(self, value, index):
         STATE.osc_mix[index] = float(value)
@@ -189,6 +202,7 @@ class SynthesizerGUI:
         if signal_data:
             self._draw_waveform(signal_data)
             self._draw_spectrum(signal_data)
+            self._update_level_meter(signal_data)
 
     def _draw_waveform(self, data):
         self.waveform_line.set_data(np.arange(len(data)), data)
@@ -203,6 +217,10 @@ class SynthesizerGUI:
         self.spectrum_ax.set_xlim(0, len(spectrum))
         self.spectrum_ax.set_ylim(0, 200)  # Center the spectrum vertically
         self.spectrum_canvas.draw()
+
+    def _update_level_meter(self, data):
+        peak_level = np.max(np.abs(data))
+        self.level_meter['value'] = peak_level * 100
 
     def _update_gui_elements(self):
         """Update GUI elements to reflect current STATE values"""
