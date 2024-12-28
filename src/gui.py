@@ -101,6 +101,12 @@ class SynthesizerGUI:
         self.resonance.grid(row=1, column=1, padx=2, pady=2)
         self.resonance.configure(command=lambda val: self._update_filter_res(val))
         
+        ttk.Label(frame, text="Type").grid(row=0, column=2)
+        self.filter_type = ttk.Combobox(frame, values=['lowpass', 'highpass', 'bandpass'])
+        self.filter_type.set(STATE.filter_type)
+        self.filter_type.grid(row=1, column=2, padx=2, pady=2)
+        self.filter_type.bind("<<ComboboxSelected>>", self._update_filter_type)
+        
     def create_adsr_frame(self):
         frame = ttk.LabelFrame(self.master, text="ADSR")
         frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
@@ -203,6 +209,20 @@ class SynthesizerGUI:
         if int(self.debug_text.index('end-1c').split('.')[0]) > 100:
             self.debug_text.delete('1.0', '2.0')
 
+    def log_state(self):
+        """Log the current state to the debug display"""
+        state_info = f"""
+        Oscillator Mix: {STATE.osc_mix}
+        Oscillator Detune: {STATE.osc_detune}
+        Oscillator Waveforms: {STATE.osc_waveforms}
+        Filter Cutoff: {STATE.filter_cutoff}
+        Filter Resonance: {STATE.filter_res}
+        Filter Type: {STATE.filter_type}
+        ADSR: {STATE.adsr}
+        Bypass: {STATE.bypass}
+        """
+        self.log_debug(state_info)
+
     def _update_osc_mix(self, value, index):
         STATE.osc_mix[index] = float(value)
         self.osc_levels[index]['value'] = float(value) * 100
@@ -224,6 +244,11 @@ class SynthesizerGUI:
     def _update_filter_res(self, value):
         STATE.filter_res = float(value)
         self.log_debug(f"Filter resonance: {value}")
+        
+    def _update_filter_type(self, event):
+        filter_type = event.widget.get()
+        STATE.filter_type = filter_type
+        self.log_debug(f"Filter type: {filter_type}")
         
     def _update_adsr(self, param, value):
         STATE.adsr[param] = float(value)
@@ -264,7 +289,10 @@ class SynthesizerGUI:
             self.osc_levels[i]['value'] = STATE.osc_mix[i] * 100
             self.osc_waveforms[i].set(STATE.osc_waveforms[i])
             self.osc_detunes[i].set(STATE.osc_detune[i])
-            self.log_debug(f"Updated GUI for OSC {i+1}: mix={STATE.osc_mix[i]}, waveform={STATE.osc_waveforms[i]}, detune={STATE.osc_detune[i]}")
+        self.cutoff.set(STATE.filter_cutoff)
+        self.resonance.set(STATE.filter_res)
+        self.filter_type.set(STATE.filter_type)
+        self.log_debug(f"Updated GUI elements")
 
     def _update_loop(self):
         update_interval = 1.0 / 30  # 30 FPS refresh rate
@@ -294,6 +322,9 @@ class SynthesizerGUI:
                     if self.module_vars['Debug Output'].get():
                         self.log_debug(f"Active voices: {active_voices}")
                         self.log_debug(f"CPU Load: {cpu_load:.1f}%")
+                    
+                    # Log the current state
+                    self.log_state()
                     
             except Exception as e:
                 self.log_debug(f"Error: {str(e)}")

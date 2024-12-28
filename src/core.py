@@ -35,7 +35,7 @@ Classes:
 import numpy as np
 import sounddevice as sd
 from threading import Lock
-from audio import Oscillator
+from audio import Oscillator, Filter
 from config import AUDIO_CONFIG, STATE
 
 class Voice:
@@ -44,6 +44,7 @@ class Voice:
         self.velocity = 0
         self.active = False
         self.oscillators = [Oscillator() for _ in range(4)]  # Create 4 oscillators
+        self.filter = Filter()
 
     def reset(self):
         self.note = None
@@ -121,10 +122,14 @@ class Synthesizer:
                 for voice in self.voices:
                     if voice.active:
                         frequency = 440.0 * (2.0 ** ((voice.note - 69) / 12.0))  # MIDI to frequency
+                        voice.filter.cutoff = STATE.filter_cutoff
+                        voice.filter.resonance = STATE.filter_res
+                        voice.filter.filter_type = STATE.filter_type
                         for i, osc in enumerate(voice.oscillators):
                             if STATE.osc_mix[i] > 0.001:  # Only process if mix level is significant
                                 detune = STATE.osc_detune[i]
                                 osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
+                                osc_output = voice.filter.process(osc_output)
                                 output += osc_output * STATE.osc_mix[i] * voice.velocity
                 
                 # Write to output buffer
