@@ -109,6 +109,53 @@ class Filter:
             output[i] = self.z1
         return output
 
+class ADSR:
+    def __init__(self):
+        self.attack = 0.01
+        self.decay = 0.1
+        self.sustain = 0.7
+        self.release = 0.3
+        self.state = 'idle'
+        self.level = 0.0
+        self.gate = False
+
+    def set_parameters(self, attack, decay, sustain, release):
+        self.attack = max(0.001, attack)
+        self.decay = max(0.001, decay)
+        self.sustain = max(0.0, min(1.0, sustain))
+        self.release = max(0.001, release)
+
+    def gate_on(self):
+        self.state = 'attack'
+        self.gate = True
+
+    def gate_off(self):
+        self.state = 'release'
+        self.gate = False
+
+    def process(self, frames):
+        output = np.zeros(frames)
+        for i in range(frames):
+            if self.state == 'attack':
+                self.level += 1.0 / (self.attack * 44100)
+                if self.level >= 1.0:
+                    self.level = 1.0
+                    self.state = 'decay'
+            elif self.state == 'decay':
+                self.level -= (1.0 - self.sustain) / (self.decay * 44100)
+                if self.level <= self.sustain:
+                    self.level = self.sustain
+                    self.state = 'sustain'
+            elif self.state == 'sustain':
+                self.level = self.sustain
+            elif self.state == 'release':
+                self.level -= self.sustain / (self.release * 44100)
+                if self.level <= 0.0:
+                    self.level = 0.0
+                    self.state = 'idle'
+            output[i] = self.level
+        return output
+
 # Unit tests for Oscillator and Filter classes
 if __name__ == '__main__':
     import unittest

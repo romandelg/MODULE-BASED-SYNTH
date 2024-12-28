@@ -98,16 +98,12 @@ def main():
         try:
             # Start GUI main loop
             root.mainloop()
-        except KeyboardInterrupt:
-            print("Interrupted by user")
         finally:
             # Cleanup
             synth.stop()
             midi.stop()
             gui.stop()
         
-    except KeyboardInterrupt:
-        print("Interrupted by user")
     finally:
         if 'synth' in locals(): synth.stop()
         if 'midi' in locals(): midi.stop()

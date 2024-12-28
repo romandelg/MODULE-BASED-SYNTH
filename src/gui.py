@@ -32,6 +32,11 @@ import time
 from config import STATE, AUDIO_CONFIG
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import logging
+
+# Suppress Matplotlib debug messages
+logging.getLogger('matplotlib').setLevel(logging.WARNING)
+
 from debug import DEBUG
 
 class SynthesizerGUI:
@@ -109,7 +114,7 @@ class SynthesizerGUI:
         self.adsr_sliders = {}
         for i, param in enumerate(['attack', 'decay', 'sustain', 'release']):
             ttk.Label(frame, text=param.capitalize()).grid(row=0, column=i)
-            slider = ttk.Scale(frame, from_=1.0, to=0.0, length=200)
+            slider = ttk.Scale(frame, from_=1.0, to=0.0, length=200, orient="vertical")
             slider.set(STATE.adsr[param])
             slider.grid(row=1, column=i, padx=2, pady=2)
             slider.configure(command=lambda val, p=param: self._update_adsr(p, val))
@@ -234,6 +239,8 @@ class SynthesizerGUI:
         self.cutoff.set(STATE.filter_cutoff)
         self.resonance.set(STATE.filter_res)
         self.filter_type.set(STATE.filter_type)
+        for param, slider in self.adsr_sliders.items():
+            slider.set(STATE.adsr[param])
 
     def _update_loop(self):
         update_interval = 1.0 / 30  # 30 FPS refresh rate

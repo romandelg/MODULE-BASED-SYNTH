@@ -35,7 +35,7 @@ Classes:
 import numpy as np
 import sounddevice as sd
 from threading import Lock
-from audio import Oscillator, Filter
+from audio import Oscillator, Filter, ADSR
 from config import AUDIO_CONFIG, STATE
 from debug import DEBUG
 
@@ -46,11 +46,30 @@ class Voice:
         self.active = False
         self.oscillators = [Oscillator() for _ in range(4)]  # Create 4 oscillators
         self.filter = Filter()
+        self.adsr = ADSR()
 
     def reset(self):
         self.note = None
         self.velocity = 0
         self.active = False
+        self.adsr.gate_off()
+
+    def process(self, frames):
+        if not self.active:
+            return np.zeros(frames)
+        adsr_output = self.adsr.process(frames)
+        if self.adsr.state == 'idle':
+            self.reset()
+            return np.zeros(frames)
+        output = np.zeros(frames)
+        frequency = 440.0 * (2.0 ** ((self.note - 69) / 12.0))
+        for i, osc in enumerate(self.oscillators):
+            if STATE.osc_mix[i] > 0.001:
+                detune = STATE.osc_detune[i]
+                osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
+                osc_output = self.filter.process(osc_output)
+                output += osc_output * STATE.osc_mix[i] * self.velocity * adsr_output
+        return output
 
 class Synthesizer:
     def __init__(self, device=None):
@@ -88,13 +107,20 @@ class Synthesizer:
                 voice.note = note
                 voice.velocity = velocity / 127.0
                 voice.active = True
+                voice.adsr.set_parameters(
+                    STATE.adsr['attack'],
+                    STATE.adsr['decay'],
+                    STATE.adsr['sustain'],
+                    STATE.adsr['release']
+                )
+                voice.adsr.gate_on()
                 print(f"Voice assigned: note={note} velocity={velocity}")
                 
     def note_off(self, note: int):
         with self.lock:
             for voice in self.voices:
                 if voice.note == note:
-                    voice.reset()
+                    voice.adsr.gate_off()
                     print(f"Voice released: note={note}")
                     break
             
@@ -122,16 +148,7 @@ class Synthesizer:
                 # Mix audio from all active voices
                 for voice in self.voices:
                     if voice.active:
-                        frequency = 440.0 * (2.0 ** ((voice.note - 69) / 12.0))  # MIDI to frequency
-                        voice.filter.cutoff = STATE.filter_cutoff
-                        voice.filter.resonance = STATE.filter_res
-                        voice.filter.filter_type = STATE.filter_type
-                        for i, osc in enumerate(voice.oscillators):
-                            if STATE.osc_mix[i] > 0.001:  # Only process if mix level is significant
-                                detune = STATE.osc_detune[i]
-                                osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
-                                osc_output = voice.filter.process(osc_output)
-                                output += osc_output * STATE.osc_mix[i] * voice.velocity
+                        output += voice.process(frames)
                 
                 # Monitor the output signal
                 DEBUG.monitor_signal('audio_out', output)
