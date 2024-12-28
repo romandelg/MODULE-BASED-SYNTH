@@ -25,7 +25,7 @@ Features:
 
 import tkinter as tk
 from tkinter import ttk
-import numpy as np
+import numpy np
 from threading import Thread, Lock
 from typing import Dict, Any
 import time
@@ -40,6 +40,8 @@ logging.getLogger('matplotlib').setLevel(logging.WARNING)
 from debug import DEBUG
 
 class SynthesizerGUI:
+    """GUI for controlling and visualizing the synthesizer parameters"""
+    
     def __init__(self, master: tk.Tk):
         self.master = master
         self.master.title("Modular Synthesizer")
@@ -69,10 +71,12 @@ class SynthesizerGUI:
         Thread(target=self._update_loop, daemon=True).start()
 
     def create_main_frame(self):
+        """Create the main frame for the GUI"""
         self.main_frame = ttk.Frame(self.master)
         self.main_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
     def create_oscillator_frame(self):
+        """Create the oscillator control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Oscillators", padding=(10, 5))
         frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
@@ -101,6 +105,7 @@ class SynthesizerGUI:
             self.osc_waveforms.append(waveform)
             
     def create_filter_frame(self):
+        """Create the filter control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Filter", padding=(10, 5))
         frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
         
@@ -123,6 +128,7 @@ class SynthesizerGUI:
         self.filter_type.bind("<<ComboboxSelected>>", self._update_filter_type)
         
     def create_adsr_frame(self):
+        """Create the ADSR envelope control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="ADSR", padding=(10, 5))
         frame.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
@@ -136,6 +142,7 @@ class SynthesizerGUI:
             self.adsr_sliders[param] = slider
 
     def create_visualization_frame(self):
+        """Create the signal monitoring visualization frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Signal Monitoring", padding=(10, 5))
         frame.grid(row=0, column=2, rowspan=2, padx=5, pady=5, sticky="nsew")
         
@@ -166,6 +173,7 @@ class SynthesizerGUI:
         self.spectrum_line, = self.spectrum_ax.plot([], [], lw=1, color='red')
 
     def create_level_visualizer(self):
+        """Create the master level, gain, and pan controls"""
         frame = ttk.LabelFrame(self.main_frame, text="Master", padding=(10, 5))
         frame.grid(row=0, column=3, rowspan=2, padx=5, pady=5, sticky="nsew")
         
@@ -189,33 +197,42 @@ class SynthesizerGUI:
         self.pan_slider.configure(command=self._update_pan)
 
     def _update_osc_mix(self, value, index):
+        """Update oscillator mix level"""
         STATE.osc_mix[index] = float(value)
         self.osc_levels[index]['value'] = float(value) * 100
         
     def _update_osc_detune(self, value, index):
+        """Update oscillator detune amount"""
         STATE.osc_detune[index] = float(value)
         
     def _update_osc_waveform(self, event, index):
+        """Update oscillator waveform"""
         waveform = event.widget.get()
         STATE.osc_waveforms[index] = waveform
         
     def _update_filter_cutoff(self, value):
+        """Update filter cutoff frequency"""
         STATE.filter_cutoff = float(value)
         
     def _update_filter_res(self, value):
+        """Update filter resonance"""
         STATE.filter_res = float(value)
         
     def _update_filter_type(self, event):
+        """Update filter type"""
         filter_type = event.widget.get()
         STATE.filter_type = filter_type
         
     def _update_adsr(self, param, value):
+        """Update ADSR envelope parameter"""
         STATE.adsr[param] = float(value)
 
     def _update_gain(self, value):
+        """Update master gain"""
         STATE.master_gain = float(value)
 
     def _update_pan(self, value):
+        """Update master pan"""
         STATE.master_pan = float(value)
 
     def _update_visualization(self):
@@ -227,11 +244,13 @@ class SynthesizerGUI:
             self._update_level_meter(signal_data)
 
     def _draw_waveform(self, data):
+        """Draw the waveform on the canvas"""
         if len(data) > 0:
             self.waveform_line.set_data(np.arange(len(data)), data)
             self.waveform_canvas.draw()
 
     def _draw_spectrum(self, data):
+        """Draw the spectrum on the canvas"""
         if len(data) > 0:
             spectrum = np.abs(np.fft.fft(data))[:len(data)//2]
             if np.max(spectrum) > 0:
@@ -240,6 +259,7 @@ class SynthesizerGUI:
             self.spectrum_canvas.draw()
 
     def _update_level_meter(self, data):
+        """Update the level meter with the peak level"""
         if len(data) > 0:
             peak_level = np.max(np.abs(data)) * 100
             self.level_meter['value'] = min(100, peak_level)
@@ -259,6 +279,7 @@ class SynthesizerGUI:
         self.pan_slider.set(STATE.master_pan)
 
     def _update_loop(self):
+        """Main update loop for the GUI"""
         update_interval = 1.0 / 30  # 30 FPS refresh rate
         while self.running:
             try:
@@ -280,12 +301,14 @@ class SynthesizerGUI:
             time.sleep(update_interval)
             
     def stop(self):
+        """Stop the GUI update loop"""
         self.running = False
 
     def update_midi_device(self, device_name: str):
         pass  # Method removed as midi_label is no longer used
 
 def create_gui():
+    """Create and return the main GUI window"""
     root = tk.Tk()
     gui = SynthesizerGUI(root)
     return root, gui

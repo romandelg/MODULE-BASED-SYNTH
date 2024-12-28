@@ -91,3 +91,26 @@ Audio Callback → Voice Management → Audio Output
 - Maximum voices: 16
 - Update rate: 30 FPS (GUI)
 - Control rate: 100 Hz
+
+## File Descriptions
+
+### /src/audio.py
+Contains the core DSP components for sound synthesis, including oscillators, filters, and ADSR envelopes.
+
+### /src/core.py
+Implements the main audio processing system with polyphonic voice management and real-time audio generation.
+
+### /src/config.py
+Defines configuration parameters and state management for the synthesizer.
+
+### /src/debug.py
+Provides real-time signal monitoring for debugging purposes.
+
+### /src/gui.py
+Implements the graphical user interface for controlling and visualizing the synthesizer parameters.
+
+### /src/main.py
+Main application entry point, handling audio device setup, MIDI device setup, and basic error handling.
+
+### /src/midi.py
+Handles MIDI input, event processing, and parameter mapping.

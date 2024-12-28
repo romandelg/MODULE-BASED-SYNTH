@@ -1,4 +1,9 @@
-"""Core Synthesizer Engine"""
+"""
+Core Synthesizer Engine
+----------------------
+Main audio processing system with polyphonic voice management
+and real-time audio generation.
+"""
 
 import numpy as np
 import sounddevice as sd
@@ -8,36 +13,54 @@ from config import AUDIO_CONFIG, STATE
 from debug import DEBUG  # Add this import
 
 class Voice:
+    """Single synthesizer voice handling oscillators and envelope"""
+    
     def __init__(self):
-        self.note = None
-        self.velocity = 0
-        self.active = False
-        self.oscillators = [Oscillator() for _ in range(4)]
-        self.adsr = ADSR()
+        self.note = None          # Currently playing MIDI note
+        self.velocity = 0         # Note velocity (0-1)
+        self.active = False       # Voice active state
+        self.oscillators = [Oscillator() for _ in range(4)]  # 4 oscillators per voice
+        self.adsr = ADSR()       # Amplitude envelope
 
     def reset(self):
+        """Reset the voice to its initial state"""
         self.note = None
         self.velocity = 0
         self.active = False
         self.adsr.gate_off()
 
     def process(self, frames):
+        """Generate audio samples for this voice
+        
+        Returns zero buffer if voice is inactive. Otherwise, generates
+        samples from all oscillators, applies ADSR envelope and 
+        returns the mixed output.
+        """
         if not self.active:
             return np.zeros(frames)
+
+        # Process ADSR envelope
         adsr_output = self.adsr.process(frames)
         if self.adsr.state == 'idle':
             self.reset()
             return np.zeros(frames)
-        output = np.zeros(frames)
+
+        # Calculate base frequency from MIDI note
         frequency = 440.0 * (2.0 ** ((self.note - 69) / 12.0))
+        
+        # Mix all oscillators
+        output = np.zeros(frames)
         for i, osc in enumerate(self.oscillators):
-            if STATE.osc_mix[i] > 0.001:
+            if STATE.osc_mix[i] > 0.001:  # Skip if oscillator is muted
                 detune = STATE.osc_detune[i]
                 osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
                 output += osc_output * STATE.osc_mix[i] * self.velocity
-        return output * adsr_output
+                
+        return output * adsr_output  # Apply envelope
 
 class Synthesizer:
+    """Main synthesizer engine managing multiple voices and audio output"""
+    
     def __init__(self, device=None):
         self.voices = [Voice() for _ in range(AUDIO_CONFIG.MAX_VOICES)]
         self.stream = None
@@ -46,6 +69,7 @@ class Synthesizer:
         self.samplerate = AUDIO_CONFIG.SAMPLE_RATE
 
     def start(self):
+        """Start the audio output stream"""
         print("Starting audio stream...")
         self.stream = sd.OutputStream(
             device=self.device,
@@ -59,11 +83,13 @@ class Synthesizer:
         print("Audio stream started successfully")
             
     def stop(self):
+        """Stop the audio output stream"""
         if self.stream:
             self.stream.stop()
             self.stream.close()
             
     def note_on(self, note: int, velocity: int):
+        """Handle MIDI note on event"""
         with self.lock:
             voice = self._find_free_voice()
             if voice:
@@ -80,6 +106,7 @@ class Synthesizer:
                 voice.adsr.gate_on()
                 
     def note_off(self, note: int):
+        """Handle MIDI note off event"""
         with self.lock:
             for voice in self.voices:
                 if voice.note == note:
@@ -87,12 +114,14 @@ class Synthesizer:
                     break
             
     def _find_free_voice(self):
+        """Find a free voice or steal the oldest active voice"""
         for voice in self.voices:
             if not voice.active:
                 return voice
         return min(self.voices, key=lambda v: v.note if v.active else float('inf'))
             
     def _audio_callback(self, outdata: np.ndarray, frames: int, time_info, status):
+        """Audio callback for real-time audio generation"""
         try:
             with self.lock:
                 output = np.zeros(frames, dtype='float32')

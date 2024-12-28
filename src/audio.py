@@ -1,34 +1,62 @@
-"""Audio Processing Modules"""
+"""
+Audio Processing Modules
+----------------------
+Core DSP components for sound synthesis:
+- Oscillator: Waveform generation with phase continuity
+- Filter: Real-time audio filtering with multiple modes
+- ADSR: Envelope generation for amplitude shaping
+"""
 
 import numpy as np
 
 class Oscillator:
+    """Generates continuous waveforms with phase-correct frequency control"""
+    
     def __init__(self):
-        self.phase = 0.0
+        self.phase = 0.0  # Keep track of phase for continuous waveform
         
     def generate(self, frequency: float, waveform: str, samples: int, detune: float = 0.0) -> np.ndarray:
+        """Generate audio samples for the requested waveform
+        
+        Args:
+            frequency: Base frequency in Hz
+            waveform: Type of waveform to generate (sine/saw/triangle/pulse)
+            samples: Number of samples to generate
+            detune: Pitch offset in semitones
+        """
+        # Ensure phase continuity between buffer generations
         self.phase = self.phase % (2 * np.pi)
+        
+        # Apply detune using semitone ratio
         detuned_frequency = frequency * (2 ** (detune / 12.0))
+        
+        # Create time array maintaining phase continuity
         t = np.linspace(self.phase, 
                        self.phase + 2 * np.pi * detuned_frequency * samples / 44100, 
                        samples, 
                        endpoint=False)
         
+        # Generate waveform based on type
         if waveform == 'sine':
-            output = np.sin(t)
+            output = np.sin(t)  # Pure sine wave
         elif waveform == 'saw':
+            # Bandlimited sawtooth approximation
             output = 2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))
         elif waveform == 'triangle':
+            # Bandlimited triangle approximation
             output = 2 * np.abs(2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))) - 1
         elif waveform == 'pulse':
+            # Simple pulse wave (50% duty cycle)
             output = np.where(t % (2 * np.pi) < np.pi, 1.0, -1.0)
         else:
-            output = np.sin(t)
+            output = np.sin(t)  # Default to sine
             
-        self.phase = t[-1]
-        return output  # Remove the 0.5 amplitude reduction for stronger signal
+        self.phase = t[-1]  # Store phase for next buffer
+        return output
 
 class Filter:
+    """Applies real-time audio filtering with multiple modes"""
+    
     def __init__(self):
         self.cutoff = 0.5
         self.resonance = 0.0
@@ -76,6 +104,8 @@ class Filter:
         return output
 
 class ADSR:
+    """Generates amplitude envelope with Attack, Decay, Sustain, and Release stages"""
+    
     def __init__(self):
         self.attack = 0.01
         self.decay = 0.1
@@ -100,6 +130,7 @@ class ADSR:
         self.gate = False
 
     def process(self, frames):
+        """Generate envelope values for the given number of frames"""
         output = np.zeros(frames)
         for i in range(frames):
             if self.state == 'attack':

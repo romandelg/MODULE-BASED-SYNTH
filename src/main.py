@@ -15,6 +15,7 @@ from gui import create_gui
 from debug import DEBUG
 
 def force_realtek_device():
+    """Force the use of a Realtek audio device if available"""
     devices = sd.query_devices()
     print("\nAvailable Audio Output Devices:")
     print("-" * 50)
@@ -35,6 +36,7 @@ def force_realtek_device():
     return realtek_device
 
 def select_midi_device():
+    """Prompt the user to select a MIDI input device"""
     midi_devices = mido.get_input_names()
     if not midi_devices:
         print("No MIDI devices found!")
