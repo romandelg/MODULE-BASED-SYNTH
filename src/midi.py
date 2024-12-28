@@ -118,5 +118,9 @@ class MIDIHandler:
                     idx = MIDI_CONFIG.ADSR_CCS.index(cc)
                     param = ['attack', 'decay', 'sustain', 'release'][idx]
                     STATE.adsr[param] = normalized
+                elif cc == 24:  # LFO Frequency
+                    STATE.lfo_frequency = normalized * 20  # Scale to 0.1 - 20 Hz
+                elif cc == 25:  # LFO Depth
+                    STATE.lfo_depth = normalized * 2  # Scale to 0.0 - 2.0
             except:
                 pass

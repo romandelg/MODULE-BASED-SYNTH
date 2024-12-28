@@ -42,6 +42,10 @@ class ModuleState:
         }
         self.master_gain = 1.0
         self.master_pan = 0.0  # -1.0 (left) to 1.0 (right)
+        self.lfo_frequency = 1.0
+        self.lfo_waveform = 'sine'
+        self.lfo_offset = 0.0
+        self.lfo_depth = 1.0
 
 # Global configuration instances
 AUDIO_CONFIG = AudioConfig()

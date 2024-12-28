@@ -38,6 +38,7 @@ import logging
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 from debug import DEBUG
+from lfo import LFO  # Import the LFO class
 
 class SynthesizerGUI:
     """GUI for controlling and visualizing the synthesizer parameters"""
@@ -48,6 +49,9 @@ class SynthesizerGUI:
         self.master.configure(bg='#2e2e2e')
         self.update_lock = Lock()
         self.running = True
+        
+        # Initialize LFO
+        self.lfo = LFO()
         
         # Apply dark mode style
         style = ttk.Style()
@@ -66,6 +70,7 @@ class SynthesizerGUI:
         self.create_adsr_frame()
         self.create_visualization_frame()
         self.create_level_visualizer()
+        self.create_lfo_controls()  # Add LFO controls
         self.create_kill_audio_button()  # Add Kill Audio button
         
         # Start update thread
@@ -104,7 +109,11 @@ class SynthesizerGUI:
             waveform.grid(row=3, column=i, padx=2, pady=2)
             waveform.bind("<<ComboboxSelected>>", lambda event, idx=i: self._update_osc_waveform(event, idx))
             self.osc_waveforms.append(waveform)
-            
+
+            # Add toggle buttons for LFO mapping
+            self.create_toggle_button(frame, "LFO Mix", 4, i, lambda idx=i: self._toggle_lfo_target(f'osc_mix_{idx}'))
+            self.create_toggle_button(frame, "LFO Detune", 5, i, lambda idx=i: self._toggle_lfo_target(f'osc_detune_{idx}'))
+
     def create_filter_frame(self):
         """Create the filter control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Filter", padding=(10, 5))
@@ -197,10 +206,97 @@ class SynthesizerGUI:
         self.pan_slider.grid(row=1, column=2, padx=5, pady=5)
         self.pan_slider.configure(command=self._update_pan)
 
-    def create_kill_audio_button(self):
-        """Create the Kill Audio button to stop all active notes"""
-        button = ttk.Button(self.main_frame, text="Kill Audio", command=self._kill_audio)
-        button.grid(row=2, column=3, padx=5, pady=5, sticky="nsew")
+    def create_lfo_controls(self):
+        """Create controls for the LFO settings and routing"""
+        frame = ttk.LabelFrame(self.main_frame, text="LFO", padding=(10, 5))
+        frame.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
+        
+        ttk.Label(frame, text="Frequency").grid(row=0, column=0)
+        self.lfo_frequency = ttk.Scale(frame, from_=20.0, to=0.1, length=200, orient="horizontal")
+        self.lfo_frequency.set(1.0)
+        self.lfo_frequency.grid(row=1, column=0, padx=5, pady=5)
+        self.lfo_frequency.configure(command=self._update_lfo_frequency)
+        
+        ttk.Label(frame, text="Waveform").grid(row=0, column=1)
+        self.lfo_waveform = ttk.Combobox(frame, values=['sine', 'triangle', 'square', 'saw'])
+        self.lfo_waveform.set('sine')
+        self.lfo_waveform.grid(row=1, column=1, padx=5, pady=5)
+        self.lfo_waveform.bind("<<ComboboxSelected>>", self._update_lfo_waveform)
+        
+        ttk.Label(frame, text="Offset").grid(row=0, column=2)
+        self.lfo_offset = ttk.Scale(frame, from_=0.0, to=1.0, length=200, orient="horizontal")
+        self.lfo_offset.set(0.0)
+        self.lfo_offset.grid(row=1, column=2, padx=5, pady=5)
+        self.lfo_offset.configure(command=self._update_lfo_offset)
+        
+        ttk.Label(frame, text="Depth").grid(row=0, column=3)
+        self.lfo_depth = ttk.Scale(frame, from_=0.0, to=1.0, length=200, orient="horizontal")
+        self.lfo_depth.set(1.0)
+        self.lfo_depth.grid(row=1, column=3, padx=5, pady=5)
+        self.lfo_depth.configure(command=self._update_lfo_depth)
+        
+        ttk.Label(frame, text="Target Parameter").grid(row=0, column=4)
+        self.lfo_target = ttk.Combobox(frame, values=['osc_mix', 'osc_detune', 'filter_cutoff', 'filter_res', 'adsr_attack', 'adsr_decay', 'adsr_sustain', 'adsr_release'])
+        self.lfo_target.set('osc_mix')
+        self.lfo_target.grid(row=1, column=4, padx=5, pady=5)
+        self.lfo_target.bind("<<ComboboxSelected>>", self._update_lfo_target)
+
+        self.lfo_enable_button = ttk.Button(frame, text="Enable LFO", command=self._enable_lfo)
+        self.lfo_enable_button.grid(row=2, column=0, padx=5, pady=5)
+
+        self.lfo_bypass_button = ttk.Button(frame, text="Bypass LFO", command=self._bypass_lfo)
+        self.lfo_bypass_button.grid(row=2, column=1, padx=5, pady=5)
+
+        # Create LFO visualization
+        self.lfo_fig, self.lfo_ax = plt.subplots(figsize=(3, 1.5))
+        self.lfo_fig.patch.set_facecolor('#2e2e2e')
+        self.lfo_ax.set_facecolor('#2e2e2e')
+        self.lfo_canvas = FigureCanvasTkAgg(self.lfo_fig, master=frame)
+        self.lfo_canvas.get_tk_widget().grid(row=3, column=0, columnspan=5, padx=5, pady=5)
+        self.lfo_ax.set_title("LFO Waveform", color='white')
+        self.lfo_ax.set_xlim(0, 1024)
+        self.lfo_ax.set_ylim(-1, 1)
+        self.lfo_ax.tick_params(axis='x', colors='white')
+        self.lfo_ax.tick_params(axis='y', colors='white')
+        self.lfo_line, = self.lfo_ax.plot([], [], lw=1, color='red')
+
+    def _update_lfo_frequency(self, value):
+        """Update LFO frequency"""
+        self.lfo.set_parameters(frequency=float(value), waveform=self.lfo_waveform.get(), offset=self.lfo_offset.get(), depth=self.lfo_depth.get())
+        STATE.lfo_frequency = float(value)
+
+    def _update_lfo_waveform(self, event):
+        """Update LFO waveform"""
+        self.lfo.set_parameters(frequency=self.lfo_frequency.get(), waveform=event.widget.get(), offset=self.lfo_offset.get(), depth=self.lfo_depth.get())
+        STATE.lfo_waveform = event.widget.get()
+
+    def _update_lfo_offset(self, value):
+        """Update LFO offset"""
+        self.lfo.set_parameters(frequency=self.lfo_frequency.get(), waveform=self.lfo_waveform.get(), offset=float(value), depth=self.lfo_depth.get())
+        STATE.lfo_offset = float(value)
+
+    def _update_lfo_depth(self, value):
+        """Update LFO depth"""
+        depth_value = float(value)
+        if 0.0 <= depth_value <= 1.0:
+            self.lfo.set_parameters(frequency=self.lfo_frequency.get(), waveform=self.lfo_waveform.get(), offset=self.lfo_offset.get(), depth=depth_value)
+            STATE.lfo_depth = depth_value
+            if self.lfo_depth.get() != depth_value:
+                self.lfo_depth.set(depth_value)  # Update the GUI slider
+
+    def _update_lfo_target(self, event):
+        """Update LFO target parameter"""
+        target = event.widget.get()
+        base_value = getattr(STATE, target, 0.0)
+        self.lfo.add_target(target, base_value)
+
+    def _enable_lfo(self):
+        """Enable the LFO"""
+        self.lfo.enable()
+
+    def _bypass_lfo(self):
+        """Bypass the LFO"""
+        self.lfo.bypass()
 
     def _kill_audio(self):
         """Stop all active notes"""
@@ -253,6 +349,10 @@ class SynthesizerGUI:
             self._draw_waveform(signal_data)
             self._draw_spectrum(signal_data)
             self._update_level_meter(signal_data)
+        
+        # Update LFO visualization
+        lfo_data = self.lfo.generate(1024)
+        self._draw_lfo(lfo_data)
 
     def _draw_waveform(self, data):
         """Draw the waveform on the canvas"""
@@ -274,6 +374,12 @@ class SynthesizerGUI:
         if len(data) > 0:
             peak_level = np.max(np.abs(data)) * 100
             self.level_meter['value'] = min(100, peak_level)
+
+    def _draw_lfo(self, data):
+        """Draw the LFO waveform on the canvas"""
+        if data is not None and len(data) > 0:
+            self.lfo_line.set_data(np.arange(len(data)), data)
+            self.lfo_canvas.draw()
 
     def _update_gui_elements(self):
         """Update GUI elements to reflect current STATE values"""
@@ -317,6 +423,25 @@ class SynthesizerGUI:
 
     def update_midi_device(self, device_name: str):
         pass  # Method removed as midi_label is no longer used
+
+    def create_toggle_button(self, frame, text, row, column, command):
+        """Create a toggle button for LFO mapping"""
+        button = ttk.Checkbutton(frame, text=text, command=command)
+        button.grid(row=row, column=column, padx=5, pady=5)
+        return button
+
+    def _toggle_lfo_target(self, target):
+        """Toggle LFO target parameter"""
+        if target in self.lfo.targets:
+            self.lfo.remove_target(target)
+        else:
+            base_value = getattr(STATE, target, 0.0)
+            self.lfo.add_target(target, base_value)
+
+    def create_kill_audio_button(self):
+        """Create the Kill Audio button to stop all active notes"""
+        button = ttk.Button(self.main_frame, text="Kill Audio", command=self._kill_audio)
+        button.grid(row=2, column=3, padx=5, pady=5, sticky="nsew")
 
 def create_gui():
     """Create and return the main GUI window"""

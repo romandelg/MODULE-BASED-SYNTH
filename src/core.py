@@ -11,6 +11,7 @@ from threading import Lock
 from audio import Oscillator, Filter, ADSR
 from config import AUDIO_CONFIG, STATE
 from debug import DEBUG  # Add this import
+from lfo import LFO  # Import the LFO class
 
 class Voice:
     """Single synthesizer voice handling oscillators and envelope"""
@@ -67,6 +68,7 @@ class Synthesizer:
         self.lock = Lock()
         self.device = device
         self.samplerate = AUDIO_CONFIG.SAMPLE_RATE
+        self.lfo = LFO()  # Initialize LFO
 
     def start(self):
         """Start the audio output stream"""
@@ -143,6 +145,9 @@ class Synthesizer:
                         except Exception as ve:
                             print(f"Voice processing error: {ve}")
                 
+                # Apply LFO modulation
+                self.lfo.generate(frames)
+                
                 # Normalize and apply gain/pan
                 if active_count > 0:
                     output = np.clip(output / max(1.0, active_count), -1.0, 1.0)
@@ -157,6 +162,10 @@ class Synthesizer:
                         output = output.reshape(-1, 1)
                     
                     DEBUG.monitor_signal('audio_out', output)
+                    
+                # Ensure the output array has the correct shape
+                if outdata.shape != output.shape:
+                    output = output.reshape(outdata.shape)
                     
                 outdata[:] = output
                 
