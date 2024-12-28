@@ -57,6 +57,7 @@ class SignalMonitor:
     def update(self, value: float):
         with self.lock:
             self.buffer.append(value)
+        print(f"Signal updated: {value}")  # Debug print
             
     def get_data(self) -> list:
         with self.lock:
@@ -117,7 +118,9 @@ class DebugSystem:
             
     def get_signal_data(self, name: str) -> list:
         if name in self.signal_monitors:
-            return self.signal_monitors[name].get_data()
+            data = self.signal_monitors[name].get_data()
+            print(f"Retrieved signal data for {name}: {data[:10]}")  # Debug print
+            return data
         return []
         
     def get_performance_stats(self) -> float:

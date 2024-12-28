@@ -37,6 +37,7 @@ import sounddevice as sd
 from threading import Lock
 from audio import Oscillator, Filter
 from config import AUDIO_CONFIG, STATE
+from debug import DEBUG
 
 class Voice:
     def __init__(self):
@@ -131,6 +132,9 @@ class Synthesizer:
                                 osc_output = osc.generate(frequency, STATE.osc_waveforms[i], frames, detune)
                                 osc_output = voice.filter.process(osc_output)
                                 output += osc_output * STATE.osc_mix[i] * voice.velocity
+                
+                # Monitor the output signal
+                DEBUG.monitor_signal('audio_out', np.mean(np.abs(output)))
                 
                 # Write to output buffer
                 outdata[:] = output.reshape(-1, 1)  # Mono output

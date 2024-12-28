@@ -37,6 +37,8 @@ from typing import Dict, Any
 import time
 from config import STATE, AUDIO_CONFIG
 from debug import DEBUG
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 class SynthesizerGUI:
     def __init__(self, master: tk.Tk):
@@ -155,11 +157,23 @@ class SynthesizerGUI:
         frame = ttk.LabelFrame(self.master, text="Signal Monitoring")
         frame.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
         
-        self.waveform_canvas = tk.Canvas(frame, width=400, height=100, bg='black')
-        self.waveform_canvas.grid(row=0, column=0, padx=5, pady=5)
+        # Create waveform plot
+        self.waveform_fig, self.waveform_ax = plt.subplots(figsize=(5, 2))
+        self.waveform_canvas = FigureCanvasTkAgg(self.waveform_fig, master=frame)
+        self.waveform_canvas.get_tk_widget().grid(row=0, column=0, padx=5, pady=5)
+        self.waveform_ax.set_title("Waveform")
+        self.waveform_ax.set_xlim(0, 1024)
+        self.waveform_ax.set_ylim(-1, 1)
+        self.waveform_line, = self.waveform_ax.plot([], [], lw=1, color='red')
         
-        self.spectrum_canvas = tk.Canvas(frame, width=400, height=100, bg='black')
-        self.spectrum_canvas.grid(row=1, column=0, padx=5, pady=5)
+        # Create spectrum plot
+        self.spectrum_fig, self.spectrum_ax = plt.subplots(figsize=(5, 2))
+        self.spectrum_canvas = FigureCanvasTkAgg(self.spectrum_fig, master=frame)
+        self.spectrum_canvas.get_tk_widget().grid(row=1, column=0, padx=5, pady=5)
+        self.spectrum_ax.set_title("Spectrum")
+        self.spectrum_ax.set_xlim(0, 512)
+        self.spectrum_ax.set_ylim(0, 1)
+        self.spectrum_line, = self.spectrum_ax.plot([], [], lw=1, color='red')
 
     def create_module_toggles(self):
         frame = ttk.LabelFrame(self.master, text="Module Controls")
@@ -255,33 +269,30 @@ class SynthesizerGUI:
         self.log_debug(f"ADSR {param}: {value}")
 
     def _update_visualization(self):
-        # Update waveform display
+        """Update waveform and spectrum visualization"""
         signal_data = DEBUG.get_signal_data('audio_out')
         if signal_data:
+            print(f"Waveform data: {signal_data[:10]}...")  # Print first 10 data points for debugging
             self._draw_waveform(signal_data)
             self._draw_spectrum(signal_data)
+        else:
+            print("No signal data available")
 
     def _draw_waveform(self, data):
-        self.waveform_canvas.delete("all")
-        if not data:
-            return
-            
-        width = self.waveform_canvas.winfo_width()
-        height = self.waveform_canvas.winfo_height()
-        points = []
-        
-        for i, value in enumerate(data):
-            x = i * width / len(data)
-            y = height/2 * (1 - value)
-            points.extend([x, y])
-            
-        if len(points) >= 4:
-            self.waveform_canvas.create_line(points, fill='#00ff00', width=1)
+        self.waveform_line.set_data(np.arange(len(data)), data)
+        self.waveform_ax.set_xlim(0, len(data))
+        self.waveform_ax.set_ylim(-1, 1)  # Center the waveform vertically
+        self.waveform_canvas.draw()
+        print("Waveform updated")
 
     def _draw_spectrum(self, data):
-        # Similar to _draw_waveform but for frequency spectrum
-        # Using numpy.fft.fft for spectrum analysis
-        pass
+        spectrum = np.abs(np.fft.fft(data))[:len(data)//2]
+        spectrum = spectrum / np.max(spectrum)  # Normalize
+        self.spectrum_line.set_data(np.arange(len(spectrum)), spectrum)
+        self.spectrum_ax.set_xlim(0, len(spectrum))
+        self.spectrum_ax.set_ylim(0, 1)  # Center the spectrum vertically
+        self.spectrum_canvas.draw()
+        print("Spectrum updated")
 
     def _update_gui_elements(self):
         """Update GUI elements to reflect current STATE values"""
@@ -308,7 +319,7 @@ class SynthesizerGUI:
                     self.perf_label.configure(text=f"CPU: {cpu_load:.1f}%")
                     
                     # Update visualizations only if window is visible
-                    if self.waveform_canvas.winfo_viewable():
+                    if self.waveform_canvas.get_tk_widget().winfo_viewable():
                         self._update_visualization()
                     
                     # Update voice count
