@@ -1,0 +1,5 @@
+numpy>=1.21.0
+sounddevice>=0.4.4
+mido>=1.2.10
+python-rtmidi>=1.4.9
+tkinter  # Usually included with Python installation
