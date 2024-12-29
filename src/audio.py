@@ -70,6 +70,8 @@ class Oscillator:
             return 2 * np.abs(2 * (t / (2 * np.pi) - np.floor(0.5 + t / (2 * np.pi)))) - 1
         elif waveform == 'pulse':
             return np.where(t % (2 * np.pi) < np.pi, 1.0, -1.0)
+        elif waveform == 'noise':
+            return np.random.uniform(-1.0, 1.0, size=len(t))  # Generate random noise
         return np.sin(t)  # Default to sine
 
 class Filter:
@@ -251,6 +253,14 @@ if __name__ == '__main__':
             self.assertEqual(len(output), samples)
             self.assertTrue(np.all(output <= 0.5))
             self.assertTrue(np.all(output >= -0.5))
+
+        def test_noise_wave(self):
+            samples = 44100
+            waveform = 'noise'
+            output = self.oscillator.generate(0, waveform, samples)
+            self.assertEqual(len(output), samples)
+            self.assertTrue(np.all(output <= 1.0))
+            self.assertTrue(np.all(output >= -1.0))
 
         def test_detune(self):
             frequency = 440.0

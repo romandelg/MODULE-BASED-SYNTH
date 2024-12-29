@@ -50,6 +50,12 @@ class ModuleState:
         self.lfo_offset = 0.0
         self.lfo_depth = 1.0  # Initialize with default depth
         
+        # Noise and Sub-Oscillator Module parameters
+        self.noise_amount = 0.0
+        self.sub_amount = 0.0
+        self.noise_harmonics = 0.0
+        self.noise_inharmonicity = 0.0
+        
         # Signal chain settings
         self.input_source = 'midi'  # Add before chain_enabled
         self.sequencer_enabled = False
@@ -59,6 +65,7 @@ class ModuleState:
         self.chain_enabled = {
             'signal': True,
             'oscillators': True,
+            'noise_sub': True,
             'mixer': True,
             'envelope': True,
             'filter': True,
@@ -70,6 +77,7 @@ class ModuleState:
         self.chain_bypass = {
             'signal': False,
             'oscillators': False,
+            'noise_sub': False,
             'mixer': False,
             'envelope': False,
             'filter': False,

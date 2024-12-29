@@ -9,12 +9,13 @@ import numpy as np
 import sounddevice as sd
 from threading import Lock
 from audio import Oscillator, Filter, ADSR
+from noise_sub_module import NoiseSubModule
 from config import AUDIO_CONFIG, STATE
 from debug import DEBUG
 from lfo import LFO
 
 class Voice:
-    """Single synthesizer voice handling oscillators, envelope, and filter"""
+    """Single synthesizer voice handling oscillators, envelope, filter, and noise/sub-oscillator module"""
     
     def __init__(self):
         self.note = None          # Currently playing MIDI note
@@ -23,6 +24,7 @@ class Voice:
         self.oscillators = [Oscillator() for _ in range(4)]  # 4 oscillators per voice
         self.adsr = ADSR()        # Amplitude envelope
         self.filter = Filter()    # Filter instance per voice
+        self.noise_sub_module = NoiseSubModule()  # Noise and sub-oscillator module
         self.pre_filter_mix = np.zeros(AUDIO_CONFIG.BUFFER_SIZE)  # Signal monitoring points
         self.post_filter_mix = np.zeros(AUDIO_CONFIG.BUFFER_SIZE)
         self.sequencer_step = 0
@@ -81,17 +83,27 @@ class Voice:
                     )
                     output += osc_output * STATE.osc_mix[i] * self.velocity
 
-        # 2. Mixer (future mixing features)
+        # 2. Noise and Sub-Oscillator Module
+        if STATE.chain_enabled['noise_sub'] and not STATE.chain_bypass['noise_sub']:
+            self.noise_sub_module.set_parameters(
+                noise_amount=STATE.noise_amount,
+                sub_amount=STATE.sub_amount,
+                harmonics=STATE.noise_harmonics,
+                inharmonicity=STATE.noise_inharmonicity
+            )
+            output = self.noise_sub_module.generate(output, frequency, frames)
+            
+        # 3. Mixer (future mixing features)
         if STATE.chain_enabled['mixer'] and not STATE.chain_bypass['mixer']:
             output = output  # Future mixing processing
             
-        # 3. Envelope
+        # 4. Envelope
         if STATE.chain_enabled['envelope'] and not STATE.chain_bypass['envelope']:
             output = output * self.adsr.process(frames)
             
         self.pre_filter_mix = output.copy()
         
-        # 4. Filter
+        # 5. Filter
         if STATE.chain_enabled['filter'] and not STATE.chain_bypass['filter']:
             self.filter.set_parameters(
                 cutoff=STATE.filter_cutoff,
@@ -104,11 +116,11 @@ class Voice:
             
         self.post_filter_mix = output.copy()
         
-        # 5. Effects (future)
+        # 6. Effects (future)
         if STATE.chain_enabled['effects'] and not STATE.chain_bypass['effects']:
             pass  # Future effects processing
             
-        # 6. Amp
+        # 7. Amp
         if STATE.chain_enabled['amp'] and not STATE.chain_bypass['amp']:
             output = output  # Future amp processing
             

@@ -12,6 +12,7 @@ import mido
 from core import Synthesizer
 from midi import MIDIHandler
 from gui import create_gui
+from gui_v2 import create_gui_v2
 from debug import DEBUG
 
 def force_realtek_device():
@@ -63,6 +64,17 @@ def select_midi_device():
         except IndexError:
             print("Please enter a number in the valid range")
 
+def select_gui_version():
+    """Prompt the user to select the GUI version"""
+    while True:
+        choice = input("\nSelect GUI version (1 for gui, 2 for gui_v2): ")
+        if choice == '1':
+            return create_gui
+        elif choice == '2':
+            return create_gui_v2
+        else:
+            print("Please enter 1 or 2")
+
 def main():
     """Initialize and run the synthesizer"""
     try:
@@ -73,6 +85,9 @@ def main():
         midi_device = select_midi_device()
         print(f"Selected MIDI device: {midi_device}")  # Debugging statement
         
+        # Select GUI version
+        create_gui_function = select_gui_version()
+        
         # Create synth with forced Realtek device
         synth = Synthesizer(device=output_device)
         
@@ -80,7 +95,7 @@ def main():
         midi = MIDIHandler(midi_device)
         
         # Create GUI
-        root, gui = create_gui(synth)  # Pass the synth instance
+        root, gui = create_gui_function(synth)  # Pass the synth instance
         
         # Start the synth engine
         synth.start()
