@@ -18,8 +18,8 @@ class AudioConfig:
 @dataclass
 class MIDIConfig:
     """MIDI control change mappings"""
-    OSC_MIX_CCS: Tuple[int, ...] = (14, 15, 16, 17)
-    OSC_DETUNE_CCS: Tuple[int, ...] = (26, 27, 28, 29)
+    OSC_MIX_CCS: Tuple[int, ...] = (14, 15, 16, 17, 18)  # Add 5th oscillator
+    OSC_DETUNE_CCS: Tuple[int, ...] = (26, 27, 28, 29, 30)  # Add 5th oscillator
     FILTER_CUTOFF_CC: int = 22
     FILTER_RES_CC: int = 23
     ADSR_CCS: Tuple[int, ...] = (18, 19, 20, 21)
@@ -28,10 +28,10 @@ class ModuleState:
     """State management for synthesizer modules"""
     
     def __init__(self):
-        self.osc_mix = np.ones(4) * 0.25
-        self.osc_detune = np.zeros(4)
-        self.osc_harmonics = np.zeros(4)  # Add harmonics control for each oscillator
-        self.osc_waveforms = ['sine', 'saw', 'triangle', 'pulse']
+        self.osc_mix = np.ones(5) * 0.2  # Update to size 5
+        self.osc_detune = np.zeros(5)  # Update to size 5
+        self.osc_harmonics = np.zeros(5)  # Update to size 5
+        self.osc_waveforms = ['sine', 'saw', 'triangle', 'pulse', 'noise']  # Add noise waveform
         self.filter_cutoff = 1.0
         self.filter_res = 0.0
         self.filter_type = 'lowpass'

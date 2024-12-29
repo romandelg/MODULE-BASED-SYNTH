@@ -21,7 +21,7 @@ class Voice:
         self.note = None          # Currently playing MIDI note
         self.velocity = 0         # Note velocity (0-1)
         self.active = False       # Voice active state
-        self.oscillators = [Oscillator() for _ in range(4)]  # 4 oscillators per voice
+        self.oscillators = [Oscillator() for _ in range(5)]  # 5 oscillators per voice
         self.adsr = ADSR()        # Amplitude envelope
         self.filter = Filter()    # Filter instance per voice
         self.noise_sub_module = NoiseSubModule()  # Noise and sub-oscillator module

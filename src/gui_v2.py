@@ -104,48 +104,36 @@ class SynthesizerGUIV2:
         frame = ttk.LabelFrame(self.main_frame, text="Oscillator", padding=(10, 5))
         frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
         
-        self.osc_waveforms = []
         self.osc_mix_levels = []
         self.osc_detunes = []
         self.osc_lfo_leds = []
-        
-        for i in range(4):
-            ttk.Label(frame, text=f"OSC {i+1}").grid(row=i, column=0, padx=5, pady=5)
-            
-            # Waveform selector
-            waveform = ttk.Combobox(frame, values=['sine', 'triangle', 'saw', 'square'])
-            waveform.set(STATE.osc_waveforms[i])
-            waveform.grid(row=i, column=1, padx=5, pady=5)
-            waveform.bind("<<ComboboxSelected>>", lambda event, idx=i: self._update_osc_waveform(event, idx))
-            self.osc_waveforms.append(waveform)
+
+        waveforms = ['sine', 'saw', 'triangle', 'pulse', 'noise']
+        for i in range(5):
+            ttk.Label(frame, text=f"OSC {i+1} ({waveforms[i]})").grid(row=i, column=0, padx=5, pady=5)
             
             # Mix level
             mix_level = ttk.Scale(frame, from_=0.0, to=1.0, length=100, orient="horizontal")
             mix_level.set(STATE.osc_mix[i])
-            mix_level.grid(row=i, column=2, padx=5, pady=5)
+            mix_level.grid(row=i, column=1, padx=5, pady=5)
             mix_level.configure(command=lambda val, idx=i: self._update_osc_mix(val, idx))
             self.osc_mix_levels.append(mix_level)
             
             # Detune level
             detune = ttk.Scale(frame, from_=-1.0, to=1.0, length=100, orient="horizontal")
             detune.set(STATE.osc_detune[i])
-            detune.grid(row=i, column=3, padx=5, pady=5)
+            detune.grid(row=i, column=2, padx=5, pady=5)
             detune.configure(command=lambda val, idx=i: self._update_osc_detune(val, idx))
             self.osc_detunes.append(detune)
             
             # LFO trigger with LED simulation
             lfo_button = ttk.Checkbutton(frame, text="LFO", command=lambda idx=i: self._toggle_lfo_target(f'osc_mix_{idx}'))
-            lfo_button.grid(row=i, column=4, padx=5, pady=5)
+            lfo_button.grid(row=i, column=3, padx=5, pady=5)
             
             led = tk.Canvas(frame, width=20, height=20, bg="gray20", highlightthickness=0)
             led.create_oval(5, 5, 15, 15, fill="gray")
-            led.grid(row=i, column=5, padx=5, pady=5)
+            led.grid(row=i, column=4, padx=5, pady=5)
             self.osc_lfo_leds.append(led)
-
-    def _update_osc_waveform(self, event, index):
-        """Update oscillator waveform"""
-        waveform = event.widget.get()
-        STATE.osc_waveforms[index] = waveform
 
     def _update_osc_mix(self, value, index):
         """Update oscillator mix level"""
@@ -214,12 +202,7 @@ class SynthesizerGUIV2:
         frame = ttk.LabelFrame(self.main_frame, text="Post-Oscillator", padding=(10, 5))
         frame.grid(row=2, column=2, padx=5, pady=5, sticky="nsew")
         
-        # Noise amount
-        ttk.Label(frame, text="Noise Amount").grid(row=0, column=0, padx=5, pady=5)
-        noise_amount = ttk.Scale(frame, from_=0.0, to=1.0, length=100, orient="horizontal")
-        noise_amount.set(STATE.noise_amount)
-        noise_amount.grid(row=1, column=0, padx=5, pady=5)
-        noise_amount.configure(command=lambda val: self._update_noise_amount(val))
+        # Removed "Noise Amount" label and scale
         
         # Sub-oscillator amount
         ttk.Label(frame, text="Sub Amount").grid(row=0, column=1, padx=5, pady=5)
@@ -243,8 +226,8 @@ class SynthesizerGUIV2:
         noise_inharmonicity.configure(command=lambda val: self._update_noise_inharmonicity(val))
 
     def _update_noise_amount(self, value):
-        """Update noise amount"""
-        STATE.noise_amount = float(value)
+        # Removed or commented out since it's no longer used
+        pass
 
     def _update_sub_amount(self, value):
         """Update sub-oscillator amount"""

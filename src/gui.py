@@ -25,9 +25,8 @@ Features:
 
 import tkinter as tk
 from tkinter import ttk
-import numpy as np  # Fix the import statement
+import numpy as np
 from threading import Thread, Lock
-from typing import Dict, Any
 import time
 from config import STATE, AUDIO_CONFIG
 import matplotlib.pyplot as plt
@@ -38,7 +37,7 @@ import logging
 logging.getLogger('matplotlib').setLevel(logging.WARNING)
 
 from debug import DEBUG
-from lfo import LFO  # Import the LFO class
+from lfo import LFO
 
 class SynthesizerGUI:
     """GUI for controlling and visualizing the synthesizer parameters"""
@@ -51,7 +50,7 @@ class SynthesizerGUI:
         self.signal_flow_indicators = {}
         self.signal_levels = {}
         self.master = master
-        self.synth = synth  # Store the synth instance
+        self.synth = synth
         self.master.title("Modular Synthesizer")
         self.master.configure(bg='#2e2e2e')
         self.update_lock = Lock()
@@ -99,12 +98,12 @@ class SynthesizerGUI:
         frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
         self.osc_levels = []
-        self.osc_lfo_levels = []  # Add LFO levels
+        self.osc_lfo_levels = []
         self.osc_detunes = []
-        self.osc_waveforms = []
-        self.osc_harmonics = []  # Add harmonics sliders
-        for i in range(4):
-            label = ttk.Label(frame, text=f"OSC {i+1}")
+        self.osc_harmonics = []
+        waveforms = ['sine', 'saw', 'triangle', 'pulse', 'noise']
+        for i in range(5):
+            label = ttk.Label(frame, text=f"OSC {i+1} ({waveforms[i]})")
             label.grid(row=0, column=i*2, padx=2, columnspan=2)
             
             level = ttk.Progressbar(frame, orient="vertical", length=100, mode="determinate")
@@ -122,18 +121,10 @@ class SynthesizerGUI:
             detune.grid(row=2, column=i*2, padx=2, pady=2, columnspan=2)
             detune.configure(command=lambda val, idx=i: self._update_osc_detune(val, idx))
             self.osc_detunes.append(detune)
-            
-            waveform = ttk.Combobox(frame, values=['sine', 'saw', 'triangle', 'pulse'])
-            waveform.set(STATE.osc_waveforms[i])
-            waveform.grid(row=3, column=i*2, padx=2, pady=2, columnspan=2)
-            waveform.bind("<<ComboboxSelected>>", lambda event, idx=i: self._update_osc_waveform(event, idx))
-            self.osc_waveforms.append(waveform)
 
-            # Add toggle buttons for LFO mapping
             self.create_toggle_button(frame, "LFO Mix", 4, i*2, lambda idx=i: self._toggle_lfo_target(f'osc_mix_{idx}'))
             self.create_toggle_button(frame, "LFO Detune", 5, i*2, lambda idx=i: self._toggle_lfo_target(f'osc_detune_{idx}'))
 
-            # Add harmonics slider
             ttk.Label(frame, text="Harm").grid(row=6, column=i*2, columnspan=2)
             harmonics = ttk.Scale(frame, from_=1.0, to=0.0, length=100, orient="vertical")
             harmonics.set(STATE.osc_harmonics[i])
@@ -149,24 +140,17 @@ class SynthesizerGUI:
         """Update oscillator detune amount"""
         try:
             new_value = float(value)
-            if STATE.osc_detune[index] != new_value:  # Only update if value changed
+            if STATE.osc_detune[index] != new_value:
                 STATE.osc_detune[index] = new_value
                 print(f"Updated oscillator {index} detune to {value}")
         except Exception as e:
             print(f"Error updating oscillator detune: {e}")
-
-    def _update_osc_waveform(self, event, index):
-        """Update oscillator waveform"""
-        waveform = event.widget.get()
-        STATE.osc_waveforms[index] = waveform
-        print(f"Updated oscillator {index} waveform to {waveform}")  # Debugging output
 
     def create_filter_frame(self):
         """Create the filter control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Filter", padding=(10, 5))
         frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
         
-        # Existing controls
         ttk.Label(frame, text="Cutoff").grid(row=0, column=0)
         self.cutoff = ttk.Scale(frame, from_=1.0, to=0.0, length=100, orient="vertical")
         self.cutoff.set(STATE.filter_cutoff)
@@ -179,14 +163,12 @@ class SynthesizerGUI:
         self.resonance.grid(row=1, column=1, padx=2, pady=2)
         self.resonance.configure(command=lambda val: self._update_filter_res(val))
         
-        # Add steepness control
         ttk.Label(frame, text="Steepness").grid(row=0, column=2)
         self.steepness = ttk.Scale(frame, from_=4.0, to=1.0, length=100, orient="vertical")
         self.steepness.set(STATE.filter_steepness)
         self.steepness.grid(row=1, column=2, padx=2, pady=2)
         self.steepness.configure(command=lambda val: self._update_filter_steepness(val))
         
-        # Add harmonics control
         ttk.Label(frame, text="Harmonics").grid(row=0, column=3)
         self.harmonics = ttk.Scale(frame, from_=1.0, to=0.0, length=100, orient="vertical")
         self.harmonics.set(STATE.filter_harmonics)
@@ -226,7 +208,6 @@ class SynthesizerGUI:
         frame = ttk.LabelFrame(self.main_frame, text="Signal Monitoring", padding=(10, 5))
         frame.grid(row=0, column=2, rowspan=2, padx=5, pady=5, sticky="nsew")
         
-        # Create waveform plot
         self.waveform_fig, self.waveform_ax = plt.subplots(figsize=(3, 1.5))
         self.waveform_fig.patch.set_facecolor('#2e2e2e')
         self.waveform_ax.set_facecolor('#2e2e2e')
@@ -239,14 +220,13 @@ class SynthesizerGUI:
         self.waveform_ax.tick_params(axis='y', colors='white')
         self.waveform_line, = self.waveform_ax.plot([], [], lw=1, color='red')
         
-        # Create spectrum plot
         self.spectrum_fig, self.spectrum_ax = plt.subplots(figsize=(3, 1.5))
         self.spectrum_fig.patch.set_facecolor('#2e2e2e')
         self.spectrum_ax.set_facecolor('#2e2e2e')
         self.spectrum_canvas = FigureCanvasTkAgg(self.spectrum_fig, master=frame)
         self.spectrum_canvas.get_tk_widget().grid(row=1, column=0, padx=5, pady=5)
         self.spectrum_ax.set_title("Spectrum", color='white')
-        self.spectrum_ax.set_xlim(0, 200)  # Limit to first 200 frequency bins
+        self.spectrum_ax.set_xlim(0, 200)
         self.spectrum_ax.set_ylim(0, 100)
         self.spectrum_ax.tick_params(axis='x', colors='white')
         self.spectrum_ax.tick_params(axis='y', colors='white')
@@ -280,16 +260,14 @@ class SynthesizerGUI:
     def _update_visualization(self):
         """Update waveform and spectrum visualization"""
         signal_data = DEBUG.get_signal_data('audio_out')
-        if len(signal_data) > 0:  # Removed the zero check to always update
+        if len(signal_data) > 0:
             self._draw_waveform(signal_data)
             self._draw_spectrum(signal_data)
             self._update_level_meter(signal_data)
         
-        # Always update LFO visualization
         lfo_data = self.lfo.generate(1024)
         self._draw_lfo(lfo_data)
         
-        # Force GUI elements update
         self._update_lfo_driven_elements()
         self.master.update()
 
@@ -320,22 +298,14 @@ class SynthesizerGUI:
     def _draw_spectrum(self, data):
         """Draw the spectrum on the canvas"""
         if len(data) > 0:
-            # Calculate spectrum using more bins for higher resolution
-            spectrum = np.abs(np.fft.rfft(data))[:1000]  # Use more frequency bins
-            
-            # Apply logarithmic scaling to better show the harmonics
+            spectrum = np.abs(np.fft.rfft(data))[:1000]
             spectrum = 20 * np.log10(spectrum + 1e-6)
-            
-            # Normalize and scale
             if np.max(spectrum) > 0:
                 spectrum = (spectrum - np.min(spectrum)) / (np.max(spectrum) - np.min(spectrum)) * 100
-            
-            # Create logarithmic frequency axis (in Hz)
-            freqs = np.logspace(1, 4, len(spectrum))  # 10 Hz to 10 kHz logarithmic scale
-            
+            freqs = np.logspace(1, 4, len(spectrum))
             self.spectrum_line.set_data(freqs, spectrum)
-            self.spectrum_ax.set_xscale('log')  # Use logarithmic scale for x-axis
-            self.spectrum_ax.set_xlim(20, 20000)  # Set frequency range from 20 Hz to 20 kHz
+            self.spectrum_ax.set_xscale('log')
+            self.spectrum_ax.set_xlim(20, 20000)
             self.spectrum_canvas.draw()
 
     def _update_level_meter(self, data):
@@ -353,38 +323,31 @@ class SynthesizerGUI:
     def _update_gui_elements(self):
         """Update GUI elements to reflect current STATE values"""
         try:
-            # Update oscillator controls
-            for i in range(4):
+            for i in range(5):
                 self.osc_levels[i]['value'] = STATE.osc_mix[i] * 100
                 self.osc_detunes[i].set(STATE.osc_detune[i])
                 self.osc_harmonics[i].set(STATE.osc_harmonics[i])
                 
-            # Update filter controls
             self.cutoff.set(STATE.filter_cutoff)
             self.resonance.set(STATE.filter_res)
             self.steepness.set(STATE.filter_steepness)
             self.harmonics.set(STATE.filter_harmonics)
             
-            # Update ADSR
             for param, slider in self.adsr_sliders.items():
                 slider.set(STATE.adsr[param])
                 
-            # Update master controls
             self.gain_slider.set(STATE.master_gain)
             self.pan_slider.set(STATE.master_pan)
             
-            # Update LFO controls
             self.lfo_frequency.set(STATE.lfo_frequency)
             self.lfo_depth.set(STATE.lfo_depth)
             
-            # Update chain status indicators only for existing modules
             for module in self.chain_status.keys():
                 try:
                     self._update_chain_status(module)
                 except Exception as e:
                     print(f"Error updating chain status for {module}: {e}")
             
-            # Update signal flow visualization
             self._update_signal_flow()
                 
         except tk.TclError as e:
@@ -398,16 +361,11 @@ class SynthesizerGUI:
                     break
 
                 with self.update_lock:
-                    # Always update visualizations
                     self._update_visualization()
                     self._update_gui_elements()
-                    
-                    # Update all plots
                     self.waveform_canvas.draw()
                     self.spectrum_canvas.draw()
                     self.lfo_canvas.draw()
-                    
-                    # Force GUI update
                     self.master.update_idletasks()
                     
             except tk.TclError as e:
@@ -422,7 +380,7 @@ class SynthesizerGUI:
         self.running = False
 
     def update_midi_device(self, device_name: str):
-        pass  # Method removed as midi_label is no longer used
+        pass
 
     def create_toggle_button(self, frame, text, row, column, command):
         """Create a toggle button for LFO mapping"""
@@ -443,19 +401,16 @@ class SynthesizerGUI:
         frame = ttk.LabelFrame(self.main_frame, text="Master", padding=(10, 5))
         frame.grid(row=0, column=3, rowspan=2, padx=5, pady=5, sticky="nsew")
         
-        # Level meter
         ttk.Label(frame, text="Level").grid(row=0, column=0)
         self.level_meter = ttk.Progressbar(frame, orient="vertical", length=200, mode="determinate")
         self.level_meter.grid(row=1, column=0, padx=5, pady=5)
 
-        # Gain control
         ttk.Label(frame, text="Gain").grid(row=0, column=1)
         self.gain_slider = ttk.Scale(frame, from_=2.0, to=0.0, length=200, orient="vertical")
         self.gain_slider.set(STATE.master_gain)
         self.gain_slider.grid(row=1, column=1, padx=5, pady=5)
         self.gain_slider.configure(command=self._update_gain)
 
-        # Pan control
         ttk.Label(frame, text="Pan").grid(row=0, column=2)
         self.pan_slider = ttk.Scale(frame, from_=1.0, to=-1.0, length=200, orient="vertical")
         self.pan_slider.set(STATE.master_pan)
@@ -467,13 +422,11 @@ class SynthesizerGUI:
         frame = ttk.LabelFrame(self.main_frame, text="Signal Chain", padding=(10, 5))
         frame.grid(row=1, column=2, padx=5, pady=5, sticky="nsew")
         
-        # Header labels
         ttk.Label(frame, text="Module").grid(row=0, column=0, padx=5, sticky='w')
         ttk.Label(frame, text="Enable").grid(row=0, column=1, padx=5)
         ttk.Label(frame, text="Bypass").grid(row=0, column=2, padx=5)
         ttk.Label(frame, text="Status").grid(row=0, column=3, padx=5)
         
-        # Define all modules
         modules = [
             ('Signal', 'signal'),
             ('Oscillators', 'oscillators'),
@@ -485,28 +438,23 @@ class SynthesizerGUI:
             ('Amp', 'amp')
         ]
         
-        # Create controls for each module
         for i, (label, key) in enumerate(modules):
             row = i + 1
             
-            # Module label
             ttk.Label(frame, text=label).grid(row=row, column=0, padx=5, sticky='w')
             
-            # Enable toggle
             enable_var = tk.BooleanVar(value=STATE.chain_enabled[key])
             enable = ttk.Checkbutton(frame, variable=enable_var,
                                    command=lambda k=key, v=enable_var: self._toggle_chain_enable(k, v))
             enable.grid(row=row, column=1, padx=5)
             self.chain_enables[key] = enable_var
             
-            # Bypass toggle
             bypass_var = tk.BooleanVar(value=STATE.chain_bypass[key])
             bypass = ttk.Checkbutton(frame, variable=bypass_var,
                                    command=lambda k=key, v=bypass_var: self._toggle_chain_bypass(k, v))
             bypass.grid(row=row, column=2, padx=5)
             self.chain_bypasses[key] = bypass_var
             
-            # Status indicator
             status = ttk.Label(frame, text="●", foreground='gray')
             status.grid(row=row, column=3, padx=5)
             self.chain_status[key] = status
@@ -520,16 +468,15 @@ class SynthesizerGUI:
     def _update_chain_status(self, module):
         """Update the visual status indicator with colors"""
         try:
-            if module in self.chain_status:
+            if (module in self.chain_status):
                 if not STATE.chain_enabled[module]:
-                    color = 'gray'      # Disabled
+                    color = 'gray'
                 elif STATE.chain_bypass[module]:
-                    color = 'yellow'    # Bypassed
+                    color = 'yellow'
                 else:
-                    color = '#00ff00'   # Active (bright green)
+                    color = '#00ff00'
                     
                 if module == 'signal':
-                    # Add input source indicator to signal module
                     source_indicator = '(M)' if STATE.input_source == 'midi' else '(S)'
                     self.chain_status[module].configure(text=f"● {source_indicator}", foreground=color)
                 else:
@@ -542,32 +489,27 @@ class SynthesizerGUI:
         frame = ttk.LabelFrame(self.main_frame, text="LFO", padding=(10, 5))
         frame.grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         
-        # LFO Frequency control
         ttk.Label(frame, text="Frequency").grid(row=0, column=0)
         self.lfo_frequency = ttk.Scale(frame, from_=20.0, to=0.1, length=200, orient="horizontal")
         self.lfo_frequency.set(STATE.lfo_frequency)
         self.lfo_frequency.grid(row=1, column=0, padx=5, pady=5)
         self.lfo_frequency.configure(command=self._update_lfo_frequency)
         
-        # LFO Waveform selector
         ttk.Label(frame, text="Waveform").grid(row=0, column=1)
         self.lfo_waveform = ttk.Combobox(frame, values=['sine', 'triangle', 'square', 'saw'])
         self.lfo_waveform.set(STATE.lfo_waveform)
         self.lfo_waveform.grid(row=1, column=1, padx=5, pady=5)
         self.lfo_waveform.bind("<<ComboboxSelected>>", self._update_lfo_waveform)
         
-        # LFO Depth control
         ttk.Label(frame, text="Depth").grid(row=0, column=2)
         self.lfo_depth = ttk.Scale(frame, from_=0.0, to=2.0, length=200, orient="horizontal")
         self.lfo_depth.set(STATE.lfo_depth)
         self.lfo_depth.grid(row=1, column=2, padx=5, pady=5)
         self.lfo_depth.configure(command=self._update_lfo_depth)
         
-        # LFO Bypass button
         self.lfo_bypass_button = ttk.Button(frame, text="Bypass", command=self._toggle_lfo_bypass)
         self.lfo_bypass_button.grid(row=1, column=3, padx=5, pady=5)
         
-        # Create LFO visualization
         self.lfo_fig, self.lfo_ax = plt.subplots(figsize=(3, 1))
         self.lfo_fig.patch.set_facecolor('#2e2e2e')
         self.lfo_ax.set_facecolor('#2e2e2e')
@@ -610,14 +552,12 @@ class SynthesizerGUI:
         frame = ttk.LabelFrame(self.main_frame, text="Signal Flow", padding=(10, 5))
         frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
 
-        # Configure styles first
         style = ttk.Style()
         style.configure('Box.TFrame', relief='solid', borderwidth=1)
         style.configure('Active.TLabel', foreground='#00ff00')
         style.configure('Inactive.TLabel', foreground='gray')
         style.configure('Bypassed.TLabel', foreground='yellow')
 
-        # Signal chain modules in order
         modules = [
             ('Input', 'signal'),
             ('OSC', 'oscillators'),
@@ -629,31 +569,25 @@ class SynthesizerGUI:
             ('AMP', 'amp')
         ]
 
-        # Create the flow visualization
         for i, (label, key) in enumerate(modules):
             module_frame = ttk.Frame(frame)
             module_frame.grid(row=0, column=i*2, padx=5)
 
-            # Module box with border
             box_frame = ttk.Frame(module_frame, style='Box.TFrame')
             box_frame.grid(row=0, column=0, pady=2)
 
-            # Module label
             ttk.Label(box_frame, text=label).grid(row=0, column=0, padx=5, pady=2)
 
-            # Activity indicator
             indicator = ttk.Label(box_frame, text="●", foreground='gray')
             indicator.grid(row=1, column=0, padx=5, pady=2)
             self.signal_flow_indicators[key] = indicator
 
-            # Bypass toggle
             bypass_var = tk.BooleanVar(value=STATE.chain_bypass[key])
             ttk.Checkbutton(module_frame, text="Bypass", 
                            variable=bypass_var,
                            command=lambda k=key, v=bypass_var: self._toggle_chain_bypass(k, v)).grid(
                 row=1, column=0, pady=2)
 
-            # Draw arrow to next module (except for last module)
             if i < len(modules) - 1:
                 ttk.Label(frame, text="→").grid(row=0, column=i*2 + 1)
 
@@ -662,15 +596,14 @@ class SynthesizerGUI:
         try:
             for module, indicator in self.signal_flow_indicators.items():
                 if not STATE.chain_enabled[module]:
-                    color = 'gray'  # Disabled
+                    color = 'gray'
                     text = "●"
                 elif STATE.chain_bypass[module]:
-                    color = 'yellow'  # Bypassed
+                    color = 'yellow'
                     text = "○"
                 else:
-                    # Check if module is receiving signal
                     has_signal = self._check_module_signal(module)
-                    color = '#00ff00' if has_signal else '#666666'  # Green if active with signal
+                    color = '#00ff00' if has_signal else '#666666'
                     text = "●"
                 
                 indicator.configure(text=text, foreground=color)
@@ -684,7 +617,6 @@ class SynthesizerGUI:
         elif module == 'oscillators':
             return any(v.active for v in self.synth.voices) if hasattr(self.synth, 'voices') else False
         elif module in ['mixer', 'envelope', 'filter', 'effects', 'amp']:
-            # Check previous module in chain
             chain_order = ['signal', 'oscillators', 'mixer', 'envelope', 'filter', 'effects', 'amp']
             idx = chain_order.index(module)
             if idx > 0:
@@ -718,10 +650,9 @@ class SynthesizerGUI:
         frame = ttk.LabelFrame(self.main_frame, text="Sequencer", padding=(10, 5))
         frame.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         
-        # Sequencer controls
         ttk.Label(frame, text="Tempo (BPM)").grid(row=0, column=0, padx=5, pady=5)
         self.tempo_slider = ttk.Scale(frame, from_=30, to=300, orient="horizontal", command=self._update_sequencer_tempo)
-        self.tempo_slider.set(120)  # Default tempo
+        self.tempo_slider.set(120)
         self.tempo_slider.grid(row=0, column=1, padx=5, pady=5)
         
         ttk.Label(frame, text="Notes").grid(row=1, column=0, padx=5, pady=5)
