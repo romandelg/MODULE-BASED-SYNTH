@@ -70,6 +70,10 @@ python main.py
    - MIDI mappings
    - Module state management
 
+7. **LFO Module** (lfo.py)
+   - Low-frequency oscillator generation
+   - Parameter modulation
+
 ### Data Flow
 ```
 MIDI Input → MIDI Handler → State Updates
@@ -83,13 +87,13 @@ Audio Callback → Voice Management → Audio Output
 - Main Thread: GUI and event handling
 - Audio Thread: Real-time audio processing
 - MIDI Thread: Event processing
-- Update Thread: GUI refresh (30 FPS)
+- Update Thread: GUI refresh (60 FPS)
 
 ### Performance Specifications
-- Buffer size: 256 samples
+- Buffer size: 1024 samples
 - Sample rate: 44100 Hz
 - Maximum voices: 16
-- Update rate: 30 FPS (GUI)
+- Update rate: 60 FPS (GUI)
 - Control rate: 100 Hz
 
 ## File Descriptions
@@ -114,3 +118,6 @@ Main application entry point, handling audio device setup, MIDI device setup, an
 
 ### /src/midi.py
 Handles MIDI input, event processing, and parameter mapping.
+
+### /src/lfo.py
+Generates LFO waveforms and routes them to various parameters.

@@ -1,6 +1,6 @@
 """
 Configuration Management
-----------------------
+------------------------
 Defines configuration parameters and state management for the synthesizer.
 """
 

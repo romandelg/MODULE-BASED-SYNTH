@@ -1,6 +1,6 @@
 """
 MIDI Event System
----------------
+-----------------
 MIDI input handling and parameter mapping.
 
 Features:
@@ -36,6 +36,8 @@ from threading import Thread, Lock
 from config import MIDI_CONFIG, STATE
 
 class MIDIHandler:
+    """Handles MIDI input and maps events to synthesizer parameters"""
+    
     def __init__(self, device_name=None):
         self.callback = None
         self.midi_in = None
@@ -45,17 +47,20 @@ class MIDIHandler:
         self.lock = Lock()
         
     def start(self, callback: Callable):
+        """Start the MIDI handler with the given callback"""
         self.callback = callback
         self.running = True
         Thread(target=self._midi_loop, daemon=True).start()
         self._connect_midi()
             
     def stop(self):
+        """Stop the MIDI handler"""
         self.running = False
         if self.midi_in:
             self.midi_in.close()
             
     def _connect_midi(self) -> bool:
+        """Connect to the MIDI device"""
         try:
             if self.midi_in:
                 self.midi_in.close()
@@ -74,6 +79,7 @@ class MIDIHandler:
             return False
             
     def _midi_loop(self):
+        """Main loop for processing MIDI events"""
         while self.running:
             try:
                 if not self.midi_in:
@@ -89,6 +95,7 @@ class MIDIHandler:
                 self.midi_in = None
 
     def _handle_midi_message(self, msg):
+        """Handle incoming MIDI messages"""
         try:
             print(f"Received MIDI message: {msg}")  # Debugging statement
             if msg.type == 'note_on' and msg.velocity > 0:
@@ -101,6 +108,7 @@ class MIDIHandler:
             print(f"Error handling MIDI message: {e}")  # Debugging statement
 
     def _handle_cc(self, cc: int, value: int):
+        """Handle MIDI control change messages"""
         with self.lock:
             normalized = value / 127.0
             try:

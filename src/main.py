@@ -1,6 +1,6 @@
 """
 Main Application Entry
--------------------
+----------------------
 - Audio device setup
 - MIDI device setup
 - Basic error handling

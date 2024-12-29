@@ -1,6 +1,6 @@
 """
 LFO (Low-Frequency Oscillator) Module
-----------------------
+-------------------------------------
 Generates LFO waveforms and routes them to various parameters.
 """
 
@@ -22,6 +22,7 @@ class LFO:
         self.targets = {}  # Dictionary to map LFO output to parameters
 
     def set_parameters(self, frequency, waveform, offset, depth):
+        """Set LFO parameters"""
         self.frequency = frequency
         self.waveform = waveform
         self.offset = offset
@@ -63,18 +64,21 @@ class LFO:
                 current_value = getattr(STATE, target_name, base_value)
                 if abs(new_value - current_value) > 0.001:  # Only update if change is significant
                     setattr(STATE, target_name, new_value)
-                    # print(f"LFO modifying {target_name}: {new_value}")  # Comment out or remove debug print
 
         return lfo_output  # Return the generated LFO waveform
 
     def enable(self):
+        """Enable the LFO"""
         self.enabled = True
 
     def disable(self):
+        """Disable the LFO"""
         self.enabled = False
 
     def bypass(self):
+        """Bypass the LFO"""
         self.bypassed = True
 
     def unbypass(self):
+        """Unbypass the LFO"""
         self.bypassed = False

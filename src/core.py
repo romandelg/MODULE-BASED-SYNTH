@@ -1,6 +1,6 @@
 """
 Core Synthesizer Engine
-----------------------
+------------------------
 Main audio processing system with polyphonic voice management
 and real-time audio generation.
 """
@@ -10,20 +10,20 @@ import sounddevice as sd
 from threading import Lock
 from audio import Oscillator, Filter, ADSR
 from config import AUDIO_CONFIG, STATE
-from debug import DEBUG  # Add this import
-from lfo import LFO  # Import the LFO class
+from debug import DEBUG
+from lfo import LFO
 
 class Voice:
-    """Single synthesizer voice handling oscillators and envelope"""
+    """Single synthesizer voice handling oscillators, envelope, and filter"""
     
     def __init__(self):
         self.note = None          # Currently playing MIDI note
         self.velocity = 0         # Note velocity (0-1)
         self.active = False       # Voice active state
         self.oscillators = [Oscillator() for _ in range(4)]  # 4 oscillators per voice
-        self.adsr = ADSR()       # Amplitude envelope
-        self.filter = Filter()  # Add filter instance per voice
-        self.pre_filter_mix = np.zeros(AUDIO_CONFIG.BUFFER_SIZE)  # Add signal monitoring points
+        self.adsr = ADSR()        # Amplitude envelope
+        self.filter = Filter()    # Filter instance per voice
+        self.pre_filter_mix = np.zeros(AUDIO_CONFIG.BUFFER_SIZE)  # Signal monitoring points
         self.post_filter_mix = np.zeros(AUDIO_CONFIG.BUFFER_SIZE)
         self.sequencer_step = 0
         self.sequencer_time = 0

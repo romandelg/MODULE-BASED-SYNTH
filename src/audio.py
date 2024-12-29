@@ -1,6 +1,6 @@
 """
 Audio Processing Modules
-----------------------
+------------------------
 Core DSP components for sound synthesis:
 - Oscillator: Waveform generation with phase continuity
 - Filter: Real-time audio filtering with multiple modes
@@ -17,14 +17,18 @@ class Oscillator:
         self.harmonics_phases = np.zeros(8)  # Track phases for up to 8 harmonics
         
     def generate(self, frequency: float, waveform: str, samples: int, detune: float = 0.0, harmonics: float = 0.0) -> np.ndarray:
-        """Generate audio samples with optional harmonics
+        """
+        Generate audio samples with optional harmonics
         
         Args:
             frequency: Base frequency in Hz
             waveform: Type of waveform to generate
-            samples: Number of samples to generate  # Documentation matches parameter name
+            samples: Number of samples to generate
             detune: Pitch offset in semitones
             harmonics: Amount of harmonic content (0.0 - 1.0)
+        
+        Returns:
+            np.ndarray: Generated audio samples
         """
         # Ensure phase continuity between buffer generations
         self.phase = self.phase % (2 * np.pi)
@@ -69,6 +73,8 @@ class Oscillator:
         return np.sin(t)  # Default to sine
 
 class Filter:
+    """Processes audio through various filter types with adjustable parameters"""
+    
     def __init__(self):
         self.cutoff = 0.99
         self.resonance = 0.0
@@ -161,16 +167,19 @@ class ADSR:
         self.gate = False
 
     def set_parameters(self, attack, decay, sustain, release):
+        """Set ADSR envelope parameters"""
         self.attack = max(0.001, attack)
         self.decay = max(0.001, decay)
         self.sustain = max(0.0, min(1.0, sustain))
         self.release = max(0.001, release)
 
     def gate_on(self):
+        """Trigger the envelope to start the attack phase"""
         self.state = 'attack'
         self.gate = True
 
     def gate_off(self):
+        """Trigger the envelope to start the release phase"""
         self.state = 'release'
         self.gate = False
 
