@@ -5,7 +5,7 @@ Generates LFO waveforms and routes them to various parameters.
 """
 
 import numpy as np
-from config import STATE  # Import STATE for parameter updates
+from config import STATE, AUDIO_CONFIG  # Import STATE for parameter updates
 
 class LFO:
     """Generates LFO waveforms and routes them to parameters"""
@@ -18,7 +18,7 @@ class LFO:
         self.phase = 0.0
         self.enabled = True
         self.bypassed = False
-        self.sample_rate = 44100
+        self.sample_rate = AUDIO_CONFIG.SAMPLE_RATE
         self.targets = {}  # Dictionary to map LFO output to parameters
 
     def set_parameters(self, frequency, waveform, offset, depth):

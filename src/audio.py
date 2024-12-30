@@ -78,7 +78,7 @@ class Filter:
     """Processes audio through various filter types with adjustable parameters"""
     
     def __init__(self):
-        self.cutoff = 0.99
+        self.cutoff = 1.0  # Start fully open
         self.resonance = 0.0
         self.filter_type = 'lowpass'
         self.steepness = 1.0
@@ -93,11 +93,11 @@ class Filter:
 
     def set_parameters(self, cutoff, resonance, filter_type, steepness=1.0, harmonics=0.0):
         """Update filter parameters"""
-        self.cutoff = min(max(cutoff, 0.01), 0.99)
-        self.resonance = min(max(resonance, 0.0), 0.99)
+        self.cutoff = np.clip(float(cutoff), 0.01, 0.99)  # Ensure cutoff is float and clipped
+        self.resonance = np.clip(float(resonance), 0.0, 0.99)
         self.filter_type = filter_type
-        self.steepness = min(max(steepness, 1.0), 4.0)  # Limit to 1-4 stages
-        self.harmonics = min(max(harmonics, 0.0), 1.0)
+        self.steepness = np.clip(float(steepness), 1.0, 4.0)
+        self.harmonics = np.clip(float(harmonics), 0.0, 1.0)
 
     def process(self, signal):
         """Process audio through the filter"""
@@ -157,56 +157,80 @@ class Filter:
         return output
 
 class ADSR:
-    """Generates amplitude envelope with Attack, Decay, Sustain, and Release stages"""
+    """ADSR envelope generator with proper release handling"""
     
     def __init__(self):
         self.attack = 0.01
         self.decay = 0.1
-        self.sustain = 0.7
-        self.release = 0.3
+        self.sustain = 0.5
+        self.release = 0.5
         self.state = 'idle'
-        self.level = 0.0
-        self.gate = False
-
+        self.current_level = 0.0
+        self.release_level = 0.0  # Store level when note is released
+        self.sample_rate = 44100
+        self.elapsed_samples = 0
+        
     def set_parameters(self, attack, decay, sustain, release):
-        """Set ADSR envelope parameters"""
-        self.attack = max(0.001, attack)
-        self.decay = max(0.001, decay)
-        self.sustain = max(0.0, min(1.0, sustain))
-        self.release = max(0.001, release)
-
+        """Set ADSR parameters in seconds"""
+        self.attack = max(0.001, float(attack))  # Minimum 1ms
+        self.decay = max(0.001, float(decay))
+        self.sustain = max(0.0, min(1.0, float(sustain)))
+        self.release = max(0.001, float(release))
+        
     def gate_on(self):
-        """Trigger the envelope to start the attack phase"""
+        """Trigger attack phase"""
         self.state = 'attack'
-        self.gate = True
-
+        self.elapsed_samples = 0
+        
     def gate_off(self):
-        """Trigger the envelope to start the release phase"""
-        self.state = 'release'
-        self.gate = False
-
-    def process(self, frames):
-        """Generate envelope values for the given number of frames"""
-        output = np.zeros(frames)
-        for i in range(frames):
-            if self.state == 'attack':
-                self.level += 1.0 / (self.attack * 44100)
-                if self.level >= 1.0:
-                    self.level = 1.0
+        """Trigger release phase"""
+        if self.state != 'idle':
+            self.state = 'release'
+            self.release_level = self.current_level  # Store current level for release
+            self.elapsed_samples = 0
+        
+    def process(self, num_samples):
+        """Generate envelope samples"""
+        output = np.zeros(num_samples)
+        
+        for i in range(num_samples):
+            if self.state == 'idle':
+                self.current_level = 0.0
+                
+            elif self.state == 'attack':
+                # Linear attack
+                attack_samples = int(self.attack * self.sample_rate)
+                if self.elapsed_samples >= attack_samples:
                     self.state = 'decay'
+                    self.elapsed_samples = 0
+                else:
+                    self.current_level = self.elapsed_samples / attack_samples
+                    
             elif self.state == 'decay':
-                self.level -= (1.0 - self.sustain) / (self.decay * 44100)
-                if self.level <= self.sustain:
-                    self.level = self.sustain
+                # Exponential decay to sustain level
+                decay_samples = int(self.decay * self.sample_rate)
+                if self.elapsed_samples >= decay_samples:
                     self.state = 'sustain'
+                else:
+                    decay_progress = self.elapsed_samples / decay_samples
+                    self.current_level = 1.0 + (self.sustain - 1.0) * decay_progress
+                    
             elif self.state == 'sustain':
-                self.level = self.sustain
+                self.current_level = self.sustain
+                
             elif self.state == 'release':
-                self.level -= self.sustain / (self.release * 44100)
-                if self.level <= 0.0:
-                    self.level = 0.0
+                # Exponential release from current level
+                release_samples = int(self.release * self.sample_rate)
+                if self.elapsed_samples >= release_samples:
                     self.state = 'idle'
-            output[i] = self.level
+                    self.current_level = 0.0
+                else:
+                    release_progress = self.elapsed_samples / release_samples
+                    self.current_level = self.release_level * (1.0 - release_progress)
+            
+            output[i] = self.current_level
+            self.elapsed_samples += 1
+            
         return output
 
 # Unit tests for Oscillator and Filter classes

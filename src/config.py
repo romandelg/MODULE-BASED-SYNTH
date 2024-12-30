@@ -35,7 +35,7 @@ class ModuleState:
         self.filter_cutoff = 1.0
         self.filter_res = 0.0
         self.filter_type = 'lowpass'
-        self.filter_steepness = 1.0  # Number of filter stages (1-4)
+        self.filter_steepness = 1.0  # Initialize filter steepness (1-4 stages)
         self.filter_harmonics = 0.0  # Amount of harmonic enhancement (0-1)
         self.adsr = {
             'attack': 0.01,

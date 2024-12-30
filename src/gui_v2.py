@@ -73,7 +73,6 @@ class SynthesizerGUIV2:
         self.create_main_frame()
         self.create_sequencer_frame()
         self.create_oscillator_frame()
-        self.create_harmonics_frame()
         self.create_adsr_frame()
         self.create_filter_frame()
         self.create_lfo_frame()
@@ -97,12 +96,22 @@ class SynthesizerGUIV2:
         """Create the sequencer control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Sequencer", padding=(10, 5))
         frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
-        # Add sequencer controls here
+        
+        # Enable/Disable toggle
+        ttk.Checkbutton(frame, text="Enable Sequencer", 
+                       command=lambda: self.synth.toggle_sequencer(STATE.sequencer_enabled)).grid(row=0, column=0)
+        
+        # BPM control
+        ttk.Label(frame, text="BPM").grid(row=1, column=0)
+        bpm_slider = ttk.Scale(frame, from_=60, to=200, orient='horizontal')
+        bpm_slider.set(120)
+        bpm_slider.grid(row=1, column=1)
+        bpm_slider.configure(command=lambda v: self.synth.set_sequencer_tempo(float(v)))
 
     def create_oscillator_frame(self):
         """Create the oscillator control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Oscillator", padding=(10, 5))
-        frame.grid(row=0, column=1, padx=5, pady=5, sticky="nsew")
+        frame.grid(row=0, column=1, columnspan=2, padx=5, pady=5, sticky="nsew")
         
         self.osc_mix_levels = []
         self.osc_detunes = []
@@ -161,12 +170,6 @@ class SynthesizerGUIV2:
             else:
                 led.itemconfig(1, fill="gray")
 
-    def create_harmonics_frame(self):
-        """Create the harmonics control frame"""
-        frame = ttk.LabelFrame(self.main_frame, text="Harmonics", padding=(10, 5))
-        frame.grid(row=0, column=2, padx=5, pady=5, sticky="nsew")
-        # Add harmonics controls here
-
     def create_adsr_frame(self):
         """Create the ADSR envelope control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="ADSR Envelope", padding=(10, 5))
@@ -202,25 +205,108 @@ class SynthesizerGUIV2:
         """Create the filter control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Filter", padding=(10, 5))
         frame.grid(row=1, column=1, padx=5, pady=5, sticky="nsew")
-        # Add filter controls here
+        
+        # Cutoff control with logarithmic scaling
+        ttk.Label(frame, text="Cutoff").grid(row=0, column=0)
+        cutoff = ttk.Scale(
+            frame,
+            from_=20,     # Minimum frequency
+            to=20000,     # Maximum frequency
+            orient='horizontal',
+            length=200
+        )
+        cutoff.set(STATE.filter_cutoff)
+        cutoff.grid(row=0, column=1)
+        
+        def update_cutoff(value):
+            # Convert linear slider value to logarithmic frequency
+            freq = float(value)
+            # Normalize frequency to 0-1 range for the filter
+            normalized = (np.log10(freq) - np.log10(20)) / (np.log10(20000) - np.log10(20))
+            STATE.filter_cutoff = normalized
+            
+        cutoff.configure(command=update_cutoff)
+        
+        # Resonance control
+        ttk.Label(frame, text="Resonance").grid(row=1, column=0)
+        resonance = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
+        resonance.set(STATE.filter_res)
+        resonance.grid(row=1, column=1)
+        resonance.configure(command=lambda v: setattr(STATE, 'filter_res', float(v)))
+        
+        # Steepness control (new)
+        ttk.Label(frame, text="Steepness").grid(row=2, column=0)
+        steepness = ttk.Scale(frame, from_=1, to=4, orient='horizontal')
+        steepness.set(STATE.filter_steepness)
+        steepness.grid(row=2, column=1)
+        steepness.configure(command=lambda v: setattr(STATE, 'filter_steepness', float(v)))
+        
+        # Filter type selector
+        ttk.Label(frame, text="Type").grid(row=3, column=0)
+        filter_type = ttk.Combobox(frame, values=['lowpass', 'highpass', 'bandpass'])
+        filter_type.set(STATE.filter_type)
+        filter_type.grid(row=3, column=1)
+        filter_type.bind('<<ComboboxSelected>>', lambda e: setattr(STATE, 'filter_type', filter_type.get()))
 
     def create_lfo_frame(self):
         """Create the LFO control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="LFO", padding=(10, 5))
         frame.grid(row=1, column=2, padx=5, pady=5, sticky="nsew")
-        # Add LFO controls here
+        
+        # Frequency control (previously rate)
+        ttk.Label(frame, text="Frequency").grid(row=0, column=0)
+        frequency = ttk.Scale(frame, from_=0.1, to=20, orient='horizontal')
+        frequency.set(self.lfo.frequency)
+        frequency.grid(row=0, column=1)
+        frequency.configure(command=lambda v: setattr(self.lfo, 'frequency', float(v)))
+        
+        # Depth control
+        ttk.Label(frame, text="Depth").grid(row=1, column=0)
+        depth = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
+        depth.set(self.lfo.depth)
+        depth.grid(row=1, column=1)
+        depth.configure(command=lambda v: setattr(self.lfo, 'depth', float(v)))
+        
+        # Waveform selector
+        ttk.Label(frame, text="Waveform").grid(row=2, column=0)
+        waveform = ttk.Combobox(frame, values=['sine', 'triangle', 'square', 'saw'])
+        waveform.set(self.lfo.waveform)
+        waveform.grid(row=2, column=1)
+        waveform.bind('<<ComboboxSelected>>', lambda e: setattr(self.lfo, 'waveform', waveform.get()))
 
     def create_effects_frame(self):
         """Create the effects control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Effects", padding=(10, 5))
         frame.grid(row=2, column=0, padx=5, pady=5, sticky="nsew")
-        # Add effects controls here
+        
+        # Reverb controls
+        ttk.Label(frame, text="Reverb").grid(row=0, column=0)
+        reverb = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
+        reverb.grid(row=0, column=1)
+        
+        # Delay controls
+        ttk.Label(frame, text="Delay").grid(row=1, column=0)
+        delay = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
+        delay.grid(row=1, column=1)
 
     def create_amp_frame(self):
         """Create the amp control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Amp", padding=(10, 5))
         frame.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
-        # Add amp controls here
+        
+        # Master volume
+        ttk.Label(frame, text="Master").grid(row=0, column=0)
+        master = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
+        master.set(STATE.master_gain)
+        master.grid(row=0, column=1)
+        master.configure(command=lambda v: setattr(STATE, 'master_gain', float(v)))
+        
+        # Pan control
+        ttk.Label(frame, text="Pan").grid(row=1, column=0)
+        pan = ttk.Scale(frame, from_=-1, to=1, orient='horizontal')
+        pan.set(STATE.master_pan)
+        pan.grid(row=1, column=1)
+        pan.configure(command=lambda v: setattr(STATE, 'master_pan', float(v)))
 
     def create_post_oscillator_frame(self):
         """Create the post-oscillator control frame"""
@@ -270,7 +356,15 @@ class SynthesizerGUIV2:
         """Create the bypass control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="Bypass Controls", padding=(10, 5))
         frame.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
-        # Add bypass controls here
+        
+        modules = ['oscillators', 'noise_sub', 'mixer', 'envelope', 'filter', 'effects', 'amp']
+        for i, module in enumerate(modules):
+            ttk.Checkbutton(frame, text=f"{module.title()}", 
+                          command=lambda m=module: self._toggle_bypass(m)).grid(row=0, column=i, padx=5)
+
+    def _toggle_bypass(self, module):
+        """Toggle bypass state for a module"""
+        STATE.chain_bypass[module] = not STATE.chain_bypass[module]
 
     def create_visualization_frame(self):
         """Create the visualization frame for waveform and spectrum"""
