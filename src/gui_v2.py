@@ -171,7 +171,32 @@ class SynthesizerGUIV2:
         """Create the ADSR envelope control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="ADSR Envelope", padding=(10, 5))
         frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
-        # Add ADSR envelope controls here
+        
+        # ADSR sliders
+        adsr_params = {
+            'Attack': (0.0, 2.0, STATE.adsr['attack']),
+            'Decay': (0.0, 2.0, STATE.adsr['decay']),
+            'Sustain': (0.0, 1.0, STATE.adsr['sustain']),
+            'Release': (0.0, 3.0, STATE.adsr['release'])
+        }
+        
+        for i, (param, (min_val, max_val, default)) in enumerate(adsr_params.items()):
+            ttk.Label(frame, text=param).grid(row=i, column=0, padx=5)
+            slider = ttk.Scale(
+                frame,
+                from_=min_val,
+                to=max_val,
+                value=default,
+                orient='horizontal',
+                length=200
+            )
+            slider.grid(row=i, column=1, padx=5, pady=2)
+            
+            # Update function for each parameter
+            def update_adsr(value, param=param.lower()):
+                STATE.adsr[param] = float(value)
+            
+            slider.configure(command=lambda v, p=param.lower(): update_adsr(v, p))
 
     def create_filter_frame(self):
         """Create the filter control frame"""
