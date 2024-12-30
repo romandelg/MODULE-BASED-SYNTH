@@ -279,15 +279,44 @@ class SynthesizerGUIV2:
         frame = ttk.LabelFrame(self.main_frame, text="Effects", padding=(10, 5))
         frame.grid(row=2, column=0, padx=5, pady=5, sticky="nsew")
         
-        # Reverb controls
-        ttk.Label(frame, text="Reverb").grid(row=0, column=0)
-        reverb = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
-        reverb.grid(row=0, column=1)
-        
-        # Delay controls
-        ttk.Label(frame, text="Delay").grid(row=1, column=0)
-        delay = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
-        delay.grid(row=1, column=1)
+        # Create effect slots
+        for slot in range(3):
+            slot_frame = ttk.LabelFrame(frame, text=f"Effect {slot + 1}", padding=(5, 5))
+            slot_frame.grid(row=slot, column=0, padx=5, pady=5, sticky="ew")
+            
+            # Effect type selector
+            fx_type = ttk.Combobox(slot_frame, values=STATE.available_fx)
+            fx_type.set(STATE.fx_slots[slot]['type'])
+            fx_type.grid(row=0, column=0, padx=5, pady=2)
+            fx_type.bind('<<ComboboxSelected>>', 
+                        lambda e, s=slot: self._update_fx_param(s, 'type', e.widget.get()))
+            
+            # Depth control
+            ttk.Label(slot_frame, text="Depth").grid(row=0, column=1)
+            depth = ttk.Scale(slot_frame, from_=0, to=1, orient='horizontal')
+            depth.set(STATE.fx_slots[slot]['depth'])
+            depth.grid(row=0, column=2, padx=5, pady=2)
+            depth.configure(command=lambda v, s=slot: self._update_fx_param(s, 'depth', float(v)))
+            
+            # Rate control
+            ttk.Label(slot_frame, text="Rate").grid(row=0, column=3)
+            rate = ttk.Scale(slot_frame, from_=0.1, to=10, orient='horizontal')
+            rate.set(STATE.fx_slots[slot]['rate'])
+            rate.grid(row=0, column=4, padx=5, pady=2)
+            rate.configure(command=lambda v, s=slot: self._update_fx_param(s, 'rate', float(v)))
+            
+            # Mix control
+            ttk.Label(slot_frame, text="Mix").grid(row=0, column=5)
+            mix = ttk.Scale(slot_frame, from_=0, to=1, orient='horizontal')
+            mix.set(STATE.fx_slots[slot]['mix'])
+            mix.grid(row=0, column=6, padx=5, pady=2)
+            mix.configure(command=lambda v, s=slot: self._update_fx_param(s, 'mix', float(v)))
+
+    def _update_fx_param(self, slot, param, value):
+        """Update effect parameter for a specific slot"""
+        STATE.fx_slots[slot][param] = value
+        STATE.chain_enabled['effects'] = True
+        STATE.chain_bypass['effects'] = False
 
     def create_amp_frame(self):
         """Create the amp control frame"""

@@ -61,6 +61,34 @@ class ModuleState:
         self.sequencer_enabled = False
         self.sequencer_notes = [60, 64, 67, 72]  # C4, E4, G4, C5
         
+        # Effects parameters
+        self.fx_reverb = 0.0
+        self.fx_delay = 0.0
+        self.fx_delay_time = 0.3  # 300ms default delay time
+        self.fx_reverb_size = 0.5  # Room size
+        self.fx_reverb_damping = 0.5  # Damping factor
+        
+        # Update available effects list
+        self.available_fx = ['none', 'chorus', 'flanger', 'phaser', 'reverb', 'delay', 'distortion']
+        
+        # Default parameters for each effect type
+        self.fx_defaults = {
+            'chorus': {'depth': 0.5, 'rate': 1.2, 'mix': 0.5},
+            'flanger': {'depth': 0.7, 'rate': 0.5, 'mix': 0.5},
+            'phaser': {'depth': 0.6, 'rate': 0.4, 'mix': 0.5},
+            'reverb': {'depth': 0.5, 'rate': 0.8, 'mix': 0.3},
+            'delay': {'depth': 0.5, 'rate': 0.3, 'mix': 0.4},
+            'distortion': {'depth': 0.3, 'rate': 1.0, 'mix': 0.5}
+        }
+        
+        # Initialize effect slots with default parameters
+        self.fx_slots = [{
+            'type': 'none',
+            'depth': 0.5,
+            'rate': 1.0,
+            'mix': 0.5
+        } for _ in range(3)]
+        
         # Chain states
         self.chain_enabled = {
             'signal': True,
@@ -70,7 +98,7 @@ class ModuleState:
             'envelope': True,
             'filter': True,
             'lfo': True,
-            'effects': False,
+            'effects': True,  # Change to True
             'amp': True
         }
         
@@ -82,7 +110,7 @@ class ModuleState:
             'envelope': False,
             'filter': False,
             'lfo': False,
-            'effects': True,
+            'effects': False,  # Change to False
             'amp': False
         }
 
