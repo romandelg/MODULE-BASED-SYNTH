@@ -57,7 +57,7 @@ class ModuleState:
         self.noise_inharmonicity = 0.0
         
         # Signal chain settings
-        self.input_source = 'midi'  # Add before chain_enabled
+        self.input_source = 'midi'  # 'midi' for live notes, 'sequencer' for sequencer playback
         self.sequencer_enabled = False
         self.sequencer_notes = [60, 64, 67, 72]  # C4, E4, G4, C5
         self.sequencer_recording = False

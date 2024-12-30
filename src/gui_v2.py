@@ -67,7 +67,7 @@ class SynthesizerGUIV2:
         style.configure('TButton', background='#4e4e4e', foreground='#ffffff')
         style.configure('TCombobox', fieldbackground='#4e4e4e', background='#4e4e4e', foreground='#ffffff')
         style.configure('TScale', background='#2e2e2e', foreground='#ffffff')
-        style.configure('TProgressbar', background='#4e4e4e', foreground='#ffffff')
+        style.configure('TProgressbar', background='#4e4e2e', foreground='#ffffff')
         
         # Create main containers
         self.create_main_frame()
@@ -131,6 +131,16 @@ class SynthesizerGUIV2:
         # Recorded sequence label
         self.sequence_label = ttk.Label(frame, text="Sequence: ")
         self.sequence_label.grid(row=3, column=0, columnspan=4, padx=5, pady=5)
+
+        # Toggle switch for real-time/live notes or sequencer
+        self.play_mode = tk.StringVar(value="live")
+        ttk.Radiobutton(frame, text="Live", variable=self.play_mode, value="live", command=self._update_play_mode).grid(row=4, column=0, padx=5, pady=5)
+        ttk.Radiobutton(frame, text="Sequencer", variable=self.play_mode, value="sequencer", command=self._update_play_mode).grid(row=4, column=1, padx=5, pady=5)
+
+    def _update_play_mode(self):
+        """Update the play mode based on the toggle switch"""
+        STATE.input_source = self.play_mode.get()
+        print(f"Play mode set to: {STATE.input_source}")
 
     def _start_record(self):
         """Start recording 8 MIDI notes"""

@@ -180,19 +180,20 @@ class Synthesizer:
                 # Update recording LED
                 self._note_recorded()
 
-            voice = self._find_free_voice()
-            if voice:
-                print(f"Note On: {note}, Velocity: {velocity}")
-                voice.note = note
-                voice.velocity = velocity / 127.0
-                voice.active = True
-                voice.adsr.set_parameters(
-                    STATE.adsr['attack'],
-                    STATE.adsr['decay'],
-                    STATE.adsr['sustain'],
-                    STATE.adsr['release']
-                )
-                voice.adsr.gate_on()
+            if STATE.input_source == 'midi':
+                voice = self._find_free_voice()
+                if voice:
+                    print(f"Note On: {note}, Velocity: {velocity}")
+                    voice.note = note
+                    voice.velocity = velocity / 127.0
+                    voice.active = True
+                    voice.adsr.set_parameters(
+                        STATE.adsr['attack'],
+                        STATE.adsr['decay'],
+                        STATE.adsr['sustain'],
+                        STATE.adsr['release']
+                    )
+                    voice.adsr.gate_on()
 
     def _print_recorded_sequence(self):
         """Print the recorded sequence of notes"""
@@ -233,12 +234,14 @@ class Synthesizer:
         STATE.sequencer_enabled = enable
         if enable:
             print("Sequencer enabled")
+            STATE.input_source = 'sequencer'
             # Reset all voice sequencer positions
             for voice in self.voices:
                 voice.sequencer_step = 0
                 voice.sequencer_time = 0
         else:
             print("Sequencer disabled")
+            STATE.input_source = 'midi'
             # Stop all voices
             for voice in self.voices:
                 voice.reset()
