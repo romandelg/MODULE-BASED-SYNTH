@@ -14,6 +14,7 @@ from midi import MIDIHandler
 from gui import create_gui
 from gui_v2 import create_gui_v2
 from debug import DEBUG
+from noise_sub_module import NoiseSubModule
 
 def force_realtek_device():
     """Force the use of a Realtek audio device if available"""
@@ -93,6 +94,10 @@ def main():
         
         # Create and initialize MIDI handler with device selection
         midi = MIDIHandler(midi_device)
+        
+        # Create NoiseSubModule and set parameters
+        noise_sub_module = NoiseSubModule()
+        noise_sub_module.set_parameters(noise_amount=0.5)  # Correct argument name
         
         # Create GUI
         root, gui = create_gui_function(synth)  # Pass the synth instance
