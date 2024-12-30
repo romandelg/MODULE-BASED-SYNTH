@@ -101,6 +101,7 @@ def main():
         
         # Create GUI
         root, gui = create_gui_function(synth)  # Pass the synth instance
+        synth.gui = gui  # Add reference to GUI in the synth instance
         
         # Start the synth engine
         synth.start()

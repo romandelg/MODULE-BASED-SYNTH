@@ -97,16 +97,79 @@ class SynthesizerGUIV2:
         frame = ttk.LabelFrame(self.main_frame, text="Sequencer", padding=(10, 5))
         frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
-        # Enable/Disable toggle
+        # Enable/Disable toggle (Play)
         ttk.Checkbutton(frame, text="Enable Sequencer", 
                        command=lambda: self.synth.toggle_sequencer(STATE.sequencer_enabled)).grid(row=0, column=0)
         
+        # Record button
+        rec_button = ttk.Button(frame, text="Rec", command=self._start_record)
+        rec_button.grid(row=0, column=1, padx=5)
+        
+        # Play/Pause button
+        play_pause_button = ttk.Button(frame, text="Play/Pause", command=self._toggle_play_pause)
+        play_pause_button.grid(row=0, column=2, padx=5)
+
         # BPM control
         ttk.Label(frame, text="BPM").grid(row=1, column=0)
         bpm_slider = ttk.Scale(frame, from_=60, to=200, orient='horizontal')
         bpm_slider.set(120)
         bpm_slider.grid(row=1, column=1)
         bpm_slider.configure(command=lambda v: self.synth.set_sequencer_tempo(float(v)))
+
+        # Octave shift control
+        ttk.Label(frame, text="Octave Shift").grid(row=2, column=0)
+        octave_shift = ttk.Scale(frame, from_=-2, to=2, orient='horizontal')
+        octave_shift.set(STATE.sequencer_octave_shift)
+        octave_shift.grid(row=2, column=1)
+        octave_shift.configure(command=lambda v: setattr(STATE, 'sequencer_octave_shift', int(v)))
+
+        # Recording LED
+        self.record_led = tk.Canvas(frame, width=20, height=20, bg="gray20", highlightthickness=0)
+        self.record_led.create_oval(5, 5, 15, 15, fill="gray")
+        self.record_led.grid(row=0, column=3, padx=5)
+
+        # Recorded sequence label
+        self.sequence_label = ttk.Label(frame, text="Sequence: ")
+        self.sequence_label.grid(row=3, column=0, columnspan=4, padx=5, pady=5)
+
+    def _start_record(self):
+        """Start recording 8 MIDI notes"""
+        STATE.sequencer_recording = True
+        STATE.sequencer_record_count = 0
+        # Optional: Clear old notes
+        STATE.sequencer_notes = [None] * 8
+        self._update_record_led()
+        print("Recording 8 notes...")
+
+    def _toggle_play_pause(self):
+        """Toggle play/pause for the sequencer"""
+        STATE.sequencer_enabled = not STATE.sequencer_enabled
+        if STATE.sequencer_enabled:
+            print("Sequencer playing...")
+        else:
+            print("Sequencer paused...")
+
+    def _update_record_led(self):
+        """Update the recording LED based on the recording state"""
+        if STATE.sequencer_recording:
+            self.record_led.itemconfig(1, fill="red")
+        else:
+            self.record_led.itemconfig(1, fill="gray")
+
+    def _note_recorded(self):
+        """Handle note recorded event"""
+        self._update_record_led()
+        if STATE.sequencer_record_count >= 8:
+            STATE.sequencer_recording = False
+            self._update_record_led()
+            self._update_sequence_label()
+            print("Sequencer recording complete.")
+
+    def _update_sequence_label(self):
+        """Update the sequence label with the recorded notes"""
+        note_names = {60: 'C', 61: 'C#', 62: 'D', 63: 'D#', 64: 'E', 65: 'F', 66: 'F#', 67: 'G', 68: 'G#', 69: 'A', 70: 'A#', 71: 'B'}
+        sequence = [note_names.get(note, str(note)) for note in STATE.sequencer_notes]
+        self.sequence_label.config(text="Sequence: " + " ".join(sequence))
 
     def create_oscillator_frame(self):
         """Create the oscillator control frame"""

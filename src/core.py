@@ -51,7 +51,7 @@ class Voice:
 
         # Update note from sequencer if enabled
         if STATE.input_source == 'sequencer' and STATE.sequencer_enabled:
-            if len(STATE.sequencer_notes) == 0:
+            if len(STATE.sequencer_notes) == 0 or STATE.sequencer_notes[0] is None:
                 return np.zeros(frames)  # Return silence if no sequencer notes are set
 
             self.sequencer_time += frames
@@ -66,7 +66,7 @@ class Voice:
 
         # Calculate frequency (now supporting both MIDI and sequencer notes)
         if self.note is not None:
-            frequency = 440.0 * (2.0 ** ((self.note - 69) / 12.0))
+            frequency = 440.0 * (2.0 ** ((self.note + STATE.sequencer_octave_shift * 12 - 69) / 12.0))
         else:
             return np.zeros(frames)
 
@@ -169,6 +169,17 @@ class Synthesizer:
     def note_on(self, note: int, velocity: int):
         """Handle MIDI note on event"""
         with self.lock:
+            # Record sequencer notes if in recording mode
+            if STATE.sequencer_recording and STATE.sequencer_record_count < 8:
+                STATE.sequencer_notes[STATE.sequencer_record_count] = note
+                STATE.sequencer_record_count += 1
+                if STATE.sequencer_record_count >= 8:
+                    STATE.sequencer_recording = False
+                    self._print_recorded_sequence()
+                    print("Sequencer recording complete.")
+                # Update recording LED
+                self._note_recorded()
+
             voice = self._find_free_voice()
             if voice:
                 print(f"Note On: {note}, Velocity: {velocity}")
@@ -182,7 +193,18 @@ class Synthesizer:
                     STATE.adsr['release']
                 )
                 voice.adsr.gate_on()
-                
+
+    def _print_recorded_sequence(self):
+        """Print the recorded sequence of notes"""
+        note_names = {60: 'C', 61: 'C#', 62: 'D', 63: 'D#', 64: 'E', 65: 'F', 66: 'F#', 67: 'G', 68: 'G#', 69: 'A', 70: 'A#', 71: 'B'}
+        sequence = [note_names.get(note, str(note)) for note in STATE.sequencer_notes]
+        print("Recorded Sequence:", " ".join(sequence))
+
+    def _note_recorded(self):
+        """Handle note recorded event"""
+        if hasattr(self, 'gui'):
+            self.gui._note_recorded()
+
     def note_off(self, note: int):
         """Handle MIDI note off event"""
         with self.lock:
