@@ -8,7 +8,7 @@ and real-time audio generation.
 import numpy as np
 import sounddevice as sd
 from threading import Lock
-from audio import Oscillator, Filter, ADSR
+from audio import Oscillator, Filter, ADSR, Compressor, Saturation, Harmonizer
 from noise_sub_module import NoiseSubModule
 from config import AUDIO_CONFIG, STATE
 from debug import DEBUG
@@ -149,6 +149,9 @@ class Synthesizer:
         self.delay_index = 0
         self.reverb_buffer = np.zeros(44100 * 2)  # 2 seconds reverb tail
         self.reverb_index = 0
+        self.compressor = Compressor()
+        self.saturation = Saturation()
+        self.harmonizer = Harmonizer()
 
     def start(self):
         """Start the audio output stream"""
@@ -360,27 +363,24 @@ class Synthesizer:
         output = np.tanh(signal * drive) / np.tanh(drive)
         return output
 
-    def _audio_callback(self, outdata, frames, time_info, status):
-        try:
-            with self.lock:
-                # Handle sequencer voice allocation
-                if hasattr(STATE, 'input_source') and STATE.input_source == 'sequencer':
-                    if hasattr(STATE, 'sequencer_enabled') and STATE.sequencer_enabled:
-                        if len(STATE.sequencer_notes) == 0:
-                            outdata.fill(0)  # Return silence if no sequencer notes are set
-                            return
-
-                        if not any(v.active for v in self.voices):
-                            voice = self._find_free_voice()
-                            if voice:
-                                voice.active = True
-                                voice.note = STATE.sequencer_notes[0]
-                                voice.velocity = 0.8
-
-                # 1. Mix all active voices
-                output = np.zeros(frames, dtype='float32')
-                active_count = 0
-                for voice in self.voices:
+    def process_amp(self, signal):
+        """Process audio through amp effects"""
+        output = signal.copy()
+        
+        # Update compressor parameters
+        self.compressor.threshold = STATE.compressor_threshold
+        self.compressor.ratio = STATE.compressor_ratio
+        self.compressor.attack = STATE.compressor_attack
+        self.compressor.release = STATE.compressor_release
+        
+        # Apply compressor
+        output = self.compressor.process(output)
+        
+        # Update saturation parameters
+        self.saturation.drive = STATE.saturation_drive
+        self.saturation.bypass = STATE.saturation_bypass
+        
+        # Apply saturation
                     if voice.active:
                         try:
                             voice_output = voice.process(frames)

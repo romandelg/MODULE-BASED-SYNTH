@@ -58,7 +58,7 @@ class Oscillator:
                 self.harmonics_phases[i-2] = harmonic_t[-1] % (2 * np.pi)
         
         self.phase = t[-1] % (2 * np.pi)
-        return output
+        return output / np.max(np.abs(output))  # Scale to have a maximum amplitude of 1
 
     def _generate_base_waveform(self, t, waveform):
         """Generate basic waveform without harmonics"""

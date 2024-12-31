@@ -115,6 +115,14 @@ class ModuleState:
             'effects': False,  # Change to False
             'amp': False
         }
+        
+        self.compressor_threshold = 0.5
+        self.compressor_ratio = 4.0
+        self.compressor_attack = 0.01
+        self.compressor_release = 0.1
+        self.saturation_drive = 1.0
+        self.saturation_bypass = False
+        self.harmonizer_shift = 0
 
 # Global configuration instances
 AUDIO_CONFIG = AudioConfig()
