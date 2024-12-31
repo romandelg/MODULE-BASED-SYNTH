@@ -136,18 +136,18 @@ class Filter:
 
         # Process signal through multiple filter stages
         output = signal.copy()
-        stages = int(self.steepness)
+        stages = int(self.steepness) * 2  # Double the stages for more aggressive filtering
         
         for stage in range(stages):
             temp = np.zeros_like(output)
             for i in range(len(output)):
                 # Apply filter with increased effect
-                temp[i] = (b0 * output[i] + b1 * self.z1[stage] + b2 * self.z2[stage] 
-                          - a1 * self.z1[stage] - a2 * self.z2[stage])
+                temp[i] = (b0 * output[i] + b1 * self.z1[stage % 4] + b2 * self.z2[stage % 4] 
+                          - a1 * self.z1[stage % 4] - a2 * self.z2[stage % 4])
                 
                 # Update delay line
-                self.z2[stage] = self.z1[stage]
-                self.z1[stage] = output[i]
+                self.z2[stage % 4] = self.z1[stage % 4]
+                self.z1[stage % 4] = output[i]
             
             output = temp
 
