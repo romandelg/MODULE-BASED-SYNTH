@@ -77,6 +77,13 @@ class SynthInterfaceApp(App):
     def on_slider_change(self, instance, value):
         print(f"{instance} changed to {value}")
 
+    def _show_error(self, message):
+        """Show an error message in a popup window"""
+        root = tk.Tk()
+        root.withdraw()  # Hide the root window 
+        messagebox.showerror("Error", message)
+        root.destroy()
+
 
 # Run the app
 if __name__ == "__main__":
