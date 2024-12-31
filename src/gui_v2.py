@@ -100,17 +100,17 @@ class SynthesizerGUIV2:
         frame = ttk.LabelFrame(self.main_frame, text="Sequencer", padding=(10, 5))
         frame.grid(row=0, column=0, padx=5, pady=5, sticky="nsew")
         
-        # Enable/Disable toggle (Play)
-        ttk.Checkbutton(frame, text="Enable Sequencer", 
-                       command=lambda: self.synth.toggle_sequencer(STATE.sequencer_enabled)).grid(row=0, column=0)
+        # Remove Enable/Disable toggle (Play)
+        # ttk.Checkbutton(frame, text="Enable Sequencer", 
+        #                command=lambda: self.synth.toggle_sequencer(STATE.sequencer_enabled)).grid(row=0, column=0)
         
         # Record button
         rec_button = ttk.Button(frame, text="Rec", command=self._start_record)
-        rec_button.grid(row=0, column=1, padx=5)
+        rec_button.grid(row=0, column=0, padx=5)
         
         # Play/Pause button
         play_pause_button = ttk.Button(frame, text="Play/Pause", command=self._toggle_play_pause)
-        play_pause_button.grid(row=0, column=2, padx=5)
+        play_pause_button.grid(row=0, column=1, padx=5)
 
         # BPM control
         ttk.Label(frame, text="BPM").grid(row=1, column=0)
@@ -129,11 +129,11 @@ class SynthesizerGUIV2:
         # Recording LED
         self.record_led = tk.Canvas(frame, width=20, height=20, bg="gray20", highlightthickness=0)
         self.record_led.create_oval(5, 5, 15, 15, fill="gray")
-        self.record_led.grid(row=0, column=3, padx=5)
+        self.record_led.grid(row=0, column=2, padx=5)
 
         # Recorded sequence label
         self.sequence_label = ttk.Label(frame, text="Sequence: ")
-        self.sequence_label.grid(row=3, column=0, columnspan=4, padx=5, pady=5)
+        self.sequence_label.grid(row=3, column=0, columnspan=3, padx=5, pady=5)
 
         # Toggle switch for real-time/live notes or sequencer
         self.play_mode = tk.StringVar(value="live")
@@ -143,6 +143,10 @@ class SynthesizerGUIV2:
     def _update_play_mode(self):
         """Update the play mode based on the toggle switch"""
         STATE.input_source = self.play_mode.get()
+        if STATE.input_source == 'sequencer':
+            self.synth.toggle_sequencer(True)  # Enable sequencer when switched to sequencer mode
+        else:
+            self.synth.toggle_sequencer(False)  # Disable sequencer when switched to live mode
         print(f"Play mode set to: {STATE.input_source}")
 
     def _start_record(self):
@@ -498,36 +502,15 @@ class SynthesizerGUIV2:
         self.spectrum_fig.patch.set_facecolor('#2e2e2e')
         self.spectrum_ax.set_facecolor('#2e2e2e')
         self.spectrum_canvas = FigureCanvasTkAgg(self.spectrum_fig, master=frame)
-        self.spectrum_canvas.get_tk_widget().grid(row=1, column=0, padx=5, pady=5)
+        self.spectrum_canvas.get_tk_widget().grid(row=0, column=1, padx=5, pady=5)
         self.spectrum_ax.set_title("Spectrum", color='white')
-        self.spectrum_ax.set_xlim(0, 200)  # Limit to first 200 frequency bins
-        self.spectrum_ax.set_ylim(0, 100)
+        self.spectrum_ax.set_xlim(20, 20000)  # Set frequency range from 20 Hz to 20 kHz
+        self.spectrum_ax.set_ylim(-100, 100)  # Set dB range from -100 to +100
+        self.spectrum_ax.set_xscale('log')  # Use logarithmic scale for x-axis
         self.spectrum_ax.tick_params(axis='x', colors='white')
         self.spectrum_ax.tick_params(axis='y', colors='white')
         self.spectrum_line, = self.spectrum_ax.plot([], [], lw=1, color='red')
 
-    def _update_loop(self):
-        """Main update loop for the GUI"""
-        while self.running:
-            try:
-                if not self.master.winfo_exists():
-                    break
-
-                with self.update_lock:
-                    # Update visualizations
-                    self._update_visualization()
-                    self._update_lfo_leds()
-                    
-                    # Force GUI update
-                    self.master.update_idletasks()
-                    
-            except tk.TclError as e:
-                if "application has been destroyed" in str(e):
-                    break
-                print(f"Error: {str(e)}")
-                
-            time.sleep(self.update_interval)
-            
     def _update_visualization(self):
         """Update waveform and spectrum visualization"""
         signal_data = DEBUG.get_signal_data('audio_out')
@@ -547,14 +530,10 @@ class SynthesizerGUIV2:
     def _draw_spectrum(self, data):
         """Draw the spectrum on the canvas"""
         if len(data) > 0:
-            spectrum = np.abs(np.fft.rfft(data))[:1000]  # Use more frequency bins
+            spectrum = np.abs(np.fft.rfft(data))  # Use more frequency bins
             spectrum = 20 * np.log10(spectrum + 1e-6)  # Apply logarithmic scaling
-            if np.max(spectrum) > 0:
-                spectrum = (spectrum - np.min(spectrum)) / (np.max(spectrum) - np.min(spectrum)) * 100
-            freqs = np.logspace(1, 4, len(spectrum))  # 10 Hz to 10 kHz logarithmic scale
+            freqs = np.fft.rfftfreq(len(data), 1 / AUDIO_CONFIG.SAMPLE_RATE)
             self.spectrum_line.set_data(freqs, spectrum)
-            self.spectrum_ax.set_xscale('log')  # Use logarithmic scale for x-axis
-            self.spectrum_ax.set_xlim(20, 20000)  # Set frequency range from 20 Hz to 20 kHz
             self.spectrum_canvas.draw()
 
     def stop(self):
@@ -567,6 +546,13 @@ class SynthesizerGUIV2:
         self.master.destroy()
         self.synth.stop()
         print("GUI closed and script stopped.")
+
+    def _update_loop(self):
+        """Periodic update loop for the GUI"""
+        while self.running:
+            with self.update_lock:
+                self._update_visualization()
+            time.sleep(self.update_interval)
 
 def create_gui_v2(synth):
     """Create and return the main GUI window"""

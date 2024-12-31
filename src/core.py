@@ -227,23 +227,6 @@ class Synthesizer:
             if not voice.active:
                 return voice
         return min(self.voices, key=lambda v: v.note if v.active else float('inf'))
-            
-    def toggle_sequencer(self, enable: bool):
-        """Enable or disable the sequencer"""
-        STATE.sequencer_enabled = enable
-        if enable:
-            print("Sequencer enabled")
-            STATE.input_source = 'sequencer'
-            # Reset all voice sequencer positions
-            for voice in self.voices:
-                voice.sequencer_step = 0
-                voice.sequencer_time = 0
-        else:
-            print("Sequencer disabled")
-            STATE.input_source = 'midi'
-            # Stop all voices
-            for voice in self.voices:
-                voice.reset()
 
     def set_sequencer_tempo(self, bpm: float):
         """Set sequencer tempo in beats per minute"""
