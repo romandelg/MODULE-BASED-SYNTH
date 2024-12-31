@@ -90,6 +90,14 @@ class SynthesizerGUIV2:
         # Start update thread
         Thread(target=self._update_loop, daemon=True).start()
 
+        # Add Kill button
+        kill_button = tk.Button(self.master, text="Kill", command=self.synth.kill)
+        kill_button.pack(pady=10)
+
+        # Add Close button
+        close_button = tk.Button(self.master, text="Close", command=self.master.quit)
+        close_button.pack(pady=10)
+
     def create_main_frame(self):
         """Create the main frame for the GUI"""
         self.main_frame = ttk.Frame(self.master)

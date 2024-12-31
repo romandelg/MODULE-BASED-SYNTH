@@ -106,12 +106,16 @@ def main():
         try:
             # Start GUI main loop
             root.mainloop()
+        except KeyboardInterrupt:
+            print("Keyboard interrupt received. Exiting...")
         finally:
             # Cleanup
             synth.stop()
             midi.stop()
             gui.stop()
         
+    except (OSError, ValueError, RuntimeError) as e:
+        print(f"An error occurred: {e}")
     finally:
         if 'synth' in locals(): synth.stop()
         if 'midi' in locals(): midi.stop()

@@ -13,6 +13,8 @@ from noise_sub_module import NoiseSubModule
 from config import AUDIO_CONFIG, STATE
 from debug import DEBUG
 from lfo import LFO
+import tkinter as tk
+from tkinter import messagebox
 
 class Voice:
     """Single synthesizer voice handling oscillators, envelope, filter, and noise/sub-oscillator module"""
@@ -150,6 +152,22 @@ class Synthesizer:
         self.reverb_buffer = np.zeros(44100 * 2)  # 2 seconds reverb tail
         self.reverb_index = 0
 
+        # Initialize all mixers, filter, ADSR, and FX to zero
+        self._initialize_parameters()
+
+    def _initialize_parameters(self):
+        """Initialize all mixers, filter, ADSR, and FX to zero"""
+        STATE.osc_mix = [0.0] * 5
+        STATE.filter_cutoff = 0.0
+        STATE.filter_res = 0.0
+        STATE.filter_steepness = 1.0
+        STATE.adsr = {'attack': 0.5, 'decay': 0.5, 'sustain': 0.5, 'release': 0.5}  # Set ADSR to middle values
+        for fx in STATE.fx_slots:
+            fx['depth'] = 0.0
+            fx['rate'] = 0.0
+            fx['mix'] = 0.0
+        print("Initialized all parameters to zero with ADSR in the middle.")
+
     def start(self):
         """Start the audio output stream"""
         print("Starting audio stream...")
@@ -170,6 +188,22 @@ class Synthesizer:
             self.stream.stop()
             self.stream.close()
         self.reset_all_voices()  # Ensure all voices are terminated
+
+    def kill(self):
+        """Stop all voices and restart the audio callback"""
+        print("Killing all voices and restarting audio callback")
+        self.stop()
+        self.start()
+        self._restart_oscillator_and_spectrometer()
+
+    def _restart_oscillator_and_spectrometer(self):
+        """Restart the oscillator and spectrometer"""
+        for voice in self.voices:
+            voice.reset()
+        DEBUG.signal_monitors['audio_out'].buffer.clear()
+        DEBUG.signal_monitors['pre_filter'].buffer.clear()
+        DEBUG.signal_monitors['post_filter'].buffer.clear()
+        print("Oscillator and spectrometer restarted.")
 
     def note_on(self, note: int, velocity: int):
         """Handle MIDI note on event"""
@@ -365,7 +399,11 @@ class Synthesizer:
         """Audio callback for real-time audio generation"""
         if status:
             print(f"Audio callback status: {status}")
-        
+            if status.output_underflow:
+                print("Output underflow detected. Restarting the stream.")
+                self._show_error("Audio output underflow occurred. Restarting the audio.")
+                self.kill()
+
         try:
             with self.lock:
                 output = np.zeros(frames)
@@ -379,8 +417,14 @@ class Synthesizer:
                             if np.any(voice_output != 0):
                                 active_count += 1
                                 output += voice_output
-                        except Exception as ve:
-                            print(f"Voice processing error: {ve}")
+                        except ValueError as ve:
+                            print(f"Voice processing error (ValueError): {ve}")
+                        except TypeError as te:
+                            print(f"Voice processing error (TypeError): {te}")
+                        except IndexError as ie:
+                            print(f"Voice processing error (IndexError): {ie}")
+                        except Exception as e:
+                            print(f"Voice processing error: {e}")
                 
                 # 2. Apply LFO modulation
                 self.lfo.generate(frames)
@@ -410,6 +454,22 @@ class Synthesizer:
                     
                 outdata[:] = output.reshape(outdata.shape)
                 
+        except ValueError as ve:
+            print(f"Audio callback error (ValueError): {ve}")
+            outdata.fill(0)
+        except TypeError as te:
+            print(f"Audio callback error (TypeError): {te}")
+            outdata.fill(0)
+        except IndexError as ie:
+            print(f"Audio callback error (IndexError): {ie}")
+            outdata.fill(0)
         except Exception as e:
             print(f"Audio callback error: {e}")
             outdata.fill(0)
+
+    def _show_error(self, message):
+        """Show an error message in a popup window"""
+        root = tk.Tk()
+        root.withdraw()  # Hide the root window
+        messagebox.showerror("Error", message)
+        root.destroy()
