@@ -34,6 +34,7 @@ from typing import Callable
 from queue import Queue
 from threading import Thread, Lock
 from config import MIDI_CONFIG, STATE
+from debug import DEBUG
 
 class MIDIHandler:
     """Handles MIDI input and maps events to synthesizer parameters"""
@@ -73,11 +74,11 @@ class MIDIHandler:
                 self.device_name = ports[0]
             else:
                 return False
-            print(f"Connected to MIDI device: {self.device_name}")  # Debugging statement
+            DEBUG.log(f"Connected to MIDI device: {self.device_name}")
             return True
             
         except Exception as e:
-            print(f"Failed to connect to MIDI device: {e}")  # Debugging statement
+            DEBUG.log(f"Failed to connect to MIDI device: {e}")
             return False
             
     def _midi_loop(self):
@@ -94,13 +95,13 @@ class MIDIHandler:
                 time.sleep(0.001)
                 
             except Exception as e:
-                print(f"Error in MIDI loop: {e}")  # Debugging statement
+                DEBUG.log(f"Error in MIDI loop: {e}")
                 self.midi_in = None
 
     def _handle_midi_message(self, msg):
         """Handle incoming MIDI messages"""
         try:
-            print(f"Received MIDI message: {msg}")  # Debugging statement
+            DEBUG.log(f"Received MIDI message: {msg}")
             if msg.type == 'note_on' and msg.velocity > 0:
                 self.callback('note_on', msg.note, msg.velocity)
             elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
@@ -108,7 +109,7 @@ class MIDIHandler:
             elif msg.type == 'control_change':
                 self._handle_cc(msg.control, msg.value)
         except Exception as e:
-            print(f"Error handling MIDI message: {e}")  # Debugging statement
+            DEBUG.log(f"Error handling MIDI message: {e}")
 
     def _handle_cc(self, cc: int, value: int):
         """Handle MIDI control change messages"""
@@ -133,7 +134,7 @@ class MIDIHandler:
                     STATE.lfo_frequency = normalized * 20  # Scale to 0.1 - 20 Hz
                 elif cc == 25:  # LFO Depth
                     STATE.lfo_depth = normalized * 2  # Scale to 0.0 - 2.0
-                print(f"Handled CC message: CC={cc}, Value={value}, Normalized={normalized}")  # Debugging statement
+                DEBUG.log(f"Handled CC message: CC={cc}, Value={value}, Normalized={normalized}")
             except Exception as e:
-                print(f"Error handling CC message: {e}")  # Debugging statement
+                DEBUG.log(f"Error handling CC message: {e}")
                 pass

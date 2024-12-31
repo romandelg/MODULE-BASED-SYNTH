@@ -44,4 +44,8 @@ class DebugSystem:
             return self.signal_monitors[name].get_data()
         return np.zeros(1024)
 
+    def log(self, message: str):
+        """Log a debug message"""
+        print(f"DEBUG: {message}")
+
 DEBUG = DebugSystem()
