@@ -40,7 +40,7 @@ class Voice:
 
     def process(self, frames):
         """Generate audio samples for this voice"""
-        if not self.active:
+        if not self.active and self.adsr.state == 'idle':
             return np.zeros(frames)
 
         output = np.zeros(frames)
@@ -128,6 +128,10 @@ class Voice:
         DEBUG.monitor_signal('pre_filter', self.pre_filter_mix)
         DEBUG.monitor_signal('post_filter', self.post_filter_mix)
         
+        # Deactivate voice if ADSR is idle
+        if self.adsr.state == 'idle':
+            self.active = False
+
         return output
 
 class Synthesizer:
@@ -213,7 +217,6 @@ class Synthesizer:
                 if voice.note == note:
                     print(f"Note Off: {note}")
                     voice.adsr.gate_off()  # Transition ADSR to release state
-                    voice.note = None  # Clear the note to stop it from sounding
                     break
 
     def reset_all_voices(self):

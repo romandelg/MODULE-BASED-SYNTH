@@ -175,7 +175,7 @@ class ADSR:
         self.attack = max(0.001, float(attack))  # Minimum 1ms
         self.decay = max(0.001, float(decay))
         self.sustain = max(0.0, min(1.0, float(sustain)))
-        self.release = max(0.001, float(release))
+        self.release = min(max(0.001, float(release)), 1.0)  # Maximum 1 second
         
     def gate_on(self):
         """Trigger attack phase"""

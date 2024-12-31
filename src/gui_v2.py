@@ -56,6 +56,9 @@ class SynthesizerGUIV2:
         self.update_lock = Lock()
         self.running = True
         
+        # Handle window close event
+        self.master.protocol("WM_DELETE_WINDOW", self.on_close)
+        
         # Initialize LFO
         self.lfo = LFO()
         
@@ -253,7 +256,7 @@ class SynthesizerGUIV2:
             'Attack': (0.0, 2.0, STATE.adsr['attack']),
             'Decay': (0.0, 2.0, STATE.adsr['decay']),
             'Sustain': (0.0, 1.0, STATE.adsr['sustain']),
-            'Release': (0.0, 3.0, STATE.adsr['release'])
+            'Release': (0.0, 1.0, STATE.adsr['release'])  # Maximum 1 second
         }
         
         for i, (param, (min_val, max_val, default)) in enumerate(adsr_params.items()):
@@ -553,6 +556,13 @@ class SynthesizerGUIV2:
     def stop(self):
         """Stop the GUI update loop"""
         self.running = False
+
+    def on_close(self):
+        """Handle the GUI window close event"""
+        self.running = False
+        self.master.destroy()
+        self.synth.stop()
+        print("GUI closed and script stopped.")
 
 def create_gui_v2(synth):
     """Create and return the main GUI window"""
