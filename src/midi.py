@@ -73,9 +73,11 @@ class MIDIHandler:
                 self.device_name = ports[0]
             else:
                 return False
+            print(f"Connected to MIDI device: {self.device_name}")  # Debugging statement
             return True
             
-        except Exception:
+        except Exception as e:
+            print(f"Failed to connect to MIDI device: {e}")  # Debugging statement
             return False
             
     def _midi_loop(self):
@@ -91,7 +93,8 @@ class MIDIHandler:
                     self._handle_midi_message(msg)
                 time.sleep(0.001)
                 
-            except Exception:
+            except Exception as e:
+                print(f"Error in MIDI loop: {e}")  # Debugging statement
                 self.midi_in = None
 
     def _handle_midi_message(self, msg):
@@ -130,5 +133,7 @@ class MIDIHandler:
                     STATE.lfo_frequency = normalized * 20  # Scale to 0.1 - 20 Hz
                 elif cc == 25:  # LFO Depth
                     STATE.lfo_depth = normalized * 2  # Scale to 0.0 - 2.0
-            except:
+                print(f"Handled CC message: CC={cc}, Value={value}, Normalized={normalized}")  # Debugging statement
+            except Exception as e:
+                print(f"Error handling CC message: {e}")  # Debugging statement
                 pass

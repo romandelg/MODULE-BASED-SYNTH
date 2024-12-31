@@ -8,7 +8,7 @@ and real-time audio generation.
 import numpy as np
 import sounddevice as sd
 from threading import Lock
-from audio import Oscillator, Filter, ADSR, Compressor, Saturation, Harmonizer
+from audio import Oscillator, Filter, ADSR
 from noise_sub_module import NoiseSubModule
 from config import AUDIO_CONFIG, STATE
 from debug import DEBUG
@@ -149,9 +149,6 @@ class Synthesizer:
         self.delay_index = 0
         self.reverb_buffer = np.zeros(44100 * 2)  # 2 seconds reverb tail
         self.reverb_index = 0
-        self.compressor = Compressor()
-        self.saturation = Saturation()
-        self.harmonizer = Harmonizer()
 
     def start(self):
         """Start the audio output stream"""
@@ -176,6 +173,7 @@ class Synthesizer:
 
     def note_on(self, note: int, velocity: int):
         """Handle MIDI note on event"""
+        print(f"Note On: {note}, Velocity: {velocity}")  # Debugging statement
         with self.lock:
             # Record sequencer notes if in recording mode
             if STATE.sequencer_recording:
@@ -186,7 +184,6 @@ class Synthesizer:
             if STATE.input_source == 'midi':
                 voice = self._find_free_voice()
                 if voice:
-                    print(f"Note On: {note}, Velocity: {velocity}")
                     voice.note = note
                     voice.velocity = velocity / 127.0
                     voice.active = True
@@ -211,15 +208,16 @@ class Synthesizer:
 
     def note_off(self, note: int):
         """Handle MIDI note off event"""
+        print(f"Note Off: {note}")  # Debugging statement
         with self.lock:
             for voice in self.voices:
                 if voice.note == note:
-                    print(f"Note Off: {note}")
                     voice.adsr.gate_off()  # Transition ADSR to release state
                     break
 
     def reset_all_voices(self):
         """Reset all active voices"""
+        print("Resetting all voices")  # Debugging statement
         with self.lock:
             for voice in self.voices:
                 voice.reset()
@@ -363,24 +361,18 @@ class Synthesizer:
         output = np.tanh(signal * drive) / np.tanh(drive)
         return output
 
-    def process_amp(self, signal):
-        """Process audio through amp effects"""
-        output = signal.copy()
+    def _audio_callback(self, outdata, frames, time, status):
+        """Audio callback for real-time audio generation"""
+        if status:
+            print(f"Audio callback status: {status}")
         
-        # Update compressor parameters
-        self.compressor.threshold = STATE.compressor_threshold
-        self.compressor.ratio = STATE.compressor_ratio
-        self.compressor.attack = STATE.compressor_attack
-        self.compressor.release = STATE.compressor_release
-        
-        # Apply compressor
-        output = self.compressor.process(output)
-        
-        # Update saturation parameters
-        self.saturation.drive = STATE.saturation_drive
-        self.saturation.bypass = STATE.saturation_bypass
-        
-        # Apply saturation
+        try:
+            with self.lock:
+                output = np.zeros(frames)
+                active_count = 0
+                
+                # 1. Process each voice
+                for voice in self.voices:
                     if voice.active:
                         try:
                             voice_output = voice.process(frames)
