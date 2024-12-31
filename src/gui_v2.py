@@ -119,12 +119,12 @@ class SynthesizerGUIV2:
         bpm_slider.grid(row=1, column=1)
         bpm_slider.configure(command=lambda v: self.synth.set_sequencer_tempo(float(v)))
 
-        # Octave shift control
-        ttk.Label(frame, text="Octave Shift").grid(row=2, column=0)
-        octave_shift = ttk.Scale(frame, from_=-2, to=2, orient='horizontal')
-        octave_shift.set(STATE.sequencer_octave_shift)
-        octave_shift.grid(row=2, column=1)
-        octave_shift.configure(command=lambda v: setattr(STATE, 'sequencer_octave_shift', int(v)))
+        # Remove octave shift control
+        # ttk.Label(frame, text="Octave Shift").grid(row=2, column=0)
+        # octave_shift = ttk.Scale(frame, from_=-2, to=2, orient='horizontal')
+        # octave_shift.set(STATE.sequencer_octave_shift)
+        # octave_shift.grid(row=2, column=1)
+        # octave_shift.configure(command=lambda v: setattr(STATE, 'sequencer_octave_shift', int(v)))
 
         # Recording LED
         self.record_led = tk.Canvas(frame, width=20, height=20, bg="gray20", highlightthickness=0)
@@ -146,13 +146,20 @@ class SynthesizerGUIV2:
         print(f"Play mode set to: {STATE.input_source}")
 
     def _start_record(self):
-        """Start recording 8 MIDI notes"""
-        STATE.sequencer_recording = True
-        STATE.sequencer_record_count = 0
-        # Optional: Clear old notes
-        STATE.sequencer_notes = [None] * 8
-        self._update_record_led()
-        print("Recording 8 notes...")
+        """Toggle recording state for the sequencer"""
+        if STATE.sequencer_recording:
+            # Stop recording
+            STATE.sequencer_recording = False
+            self._update_record_led()
+            self._update_sequence_label()
+            print("Sequencer recording stopped.")
+        else:
+            # Start recording
+            STATE.sequencer_recording = True
+            STATE.sequencer_record_count = 0
+            STATE.sequencer_notes = []
+            self._update_record_led()
+            print("Recording notes...")
 
     def _toggle_play_pause(self):
         """Toggle play/pause for the sequencer"""
@@ -172,11 +179,8 @@ class SynthesizerGUIV2:
     def _note_recorded(self):
         """Handle note recorded event"""
         self._update_record_led()
-        if STATE.sequencer_record_count >= 8:
-            STATE.sequencer_recording = False
-            self._update_record_led()
-            self._update_sequence_label()
-            print("Sequencer recording complete.")
+        self._update_sequence_label()
+        print("Note recorded.")
 
     def _update_sequence_label(self):
         """Update the sequence label with the recorded notes"""

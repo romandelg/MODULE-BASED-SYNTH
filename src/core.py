@@ -66,7 +66,7 @@ class Voice:
 
         # Calculate frequency (now supporting both MIDI and sequencer notes)
         if self.note is not None:
-            frequency = 440.0 * (2.0 ** ((self.note + STATE.sequencer_octave_shift * 12 - 69) / 12.0))
+            frequency = 440.0 * (2.0 ** ((self.note - 69) / 12.0))  # Removed octave shift
         else:
             return np.zeros(frames)
 
@@ -165,23 +165,19 @@ class Synthesizer:
         print("Audio stream started successfully")
             
     def stop(self):
-        """Stop the audio output stream"""
+        """Stop the audio output stream and reset all voices"""
         if self.stream:
             self.stream.stop()
             self.stream.close()
-            
+        self.reset_all_voices()  # Ensure all voices are terminated
+
     def note_on(self, note: int, velocity: int):
         """Handle MIDI note on event"""
         with self.lock:
             # Record sequencer notes if in recording mode
-            if STATE.sequencer_recording and STATE.sequencer_record_count < 8:
-                STATE.sequencer_notes[STATE.sequencer_record_count] = note
+            if STATE.sequencer_recording:
+                STATE.sequencer_notes.append(note)
                 STATE.sequencer_record_count += 1
-                if STATE.sequencer_record_count >= 8:
-                    STATE.sequencer_recording = False
-                    self._print_recorded_sequence()
-                    print("Sequencer recording complete.")
-                # Update recording LED
                 self._note_recorded()
 
             if STATE.input_source == 'midi':

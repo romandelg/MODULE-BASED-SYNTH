@@ -62,7 +62,6 @@ class ModuleState:
         self.sequencer_notes = [60, 64, 67, 72]  # C4, E4, G4, C5
         self.sequencer_recording = False
         self.sequencer_record_count = 0
-        self.sequencer_octave_shift = 0  # New attribute for octave shift
         
         # Effects parameters
         self.fx_reverb = 0.0
