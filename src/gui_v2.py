@@ -48,9 +48,10 @@ from lfo import LFO
 class SynthesizerGUIV2:
     """GUI for controlling and visualizing the synthesizer parameters"""
     
-    def __init__(self, master: tk.Tk, synth):
-        self.master = master
+    def __init__(self, synth):
         self.synth = synth
+        self.root = tk.Tk()  # Ensure root attribute is set
+        self.master = self.root
         self.master.title("Modular Synthesizer v2")
         self.master.configure(bg='#2e2e2e')
         self.update_lock = Lock()
@@ -97,6 +98,9 @@ class SynthesizerGUIV2:
         # Add Close button
         close_button = tk.Button(self.master, text="Close", command=self.master.quit)
         close_button.pack(pady=10)
+
+        self.lfo_update_id = None  # Store update loop ID
+        self._start_lfo_updates()
 
     def create_main_frame(self):
         """Create the main frame for the GUI"""
@@ -343,28 +347,118 @@ class SynthesizerGUIV2:
     def create_lfo_frame(self):
         """Create the LFO control frame"""
         frame = ttk.LabelFrame(self.main_frame, text="LFO", padding=(10, 5))
-        frame.grid(row=1, column=2, padx=5, pady=5, sticky="nsew")
+        frame.grid(row=5, column=0, columnspan=3, padx=5, pady=5, sticky="nsew")
         
-        # Frequency control (previously rate)
-        ttk.Label(frame, text="Frequency").grid(row=0, column=0)
-        frequency = ttk.Scale(frame, from_=0.1, to=20, orient='horizontal')
-        frequency.set(self.lfo.frequency)
-        frequency.grid(row=0, column=1)
-        frequency.configure(command=lambda v: setattr(self.lfo, 'frequency', float(v)))
+        # Left side - Controls
+        controls = ttk.Frame(frame)
+        controls.grid(row=0, column=0, padx=5, pady=5, sticky="nsw")
         
-        # Depth control
-        ttk.Label(frame, text="Depth").grid(row=1, column=0)
-        depth = ttk.Scale(frame, from_=0, to=1, orient='horizontal')
-        depth.set(self.lfo.depth)
-        depth.grid(row=1, column=1)
-        depth.configure(command=lambda v: setattr(self.lfo, 'depth', float(v)))
+        # Rate
+        ttk.Label(controls, text="Rate (Hz)").grid(row=0, column=0, padx=5)
+        self.lfo_rate = ttk.Scale(
+            controls, from_=0.1, to=20.0,
+            orient="horizontal", length=200,
+            command=lambda v: self._update_lfo_param('frequency', float(v))
+        )
+        self.lfo_rate.set(1.0)
+        self.lfo_rate.grid(row=0, column=1, padx=5, pady=5)
         
-        # Waveform selector
-        ttk.Label(frame, text="Waveform").grid(row=2, column=0)
-        waveform = ttk.Combobox(frame, values=['sine', 'triangle', 'square', 'saw'])
-        waveform.set(self.lfo.waveform)
-        waveform.grid(row=2, column=1)
-        waveform.bind('<<ComboboxSelected>>', lambda e: setattr(self.lfo, 'waveform', waveform.get()))
+        # Waveform
+        ttk.Label(controls, text="Waveform").grid(row=1, column=0, padx=5)
+        self.lfo_wave = ttk.Combobox(
+            controls,
+            values=['sine', 'triangle', 'square', 'saw'],
+            state='readonly',
+            width=10
+        )
+        self.lfo_wave.set('sine')
+        self.lfo_wave.grid(row=1, column=1, padx=5, pady=5)
+        self.lfo_wave.bind('<<ComboboxSelected>>', 
+                          lambda e: self._update_lfo_param('waveform', self.lfo_wave.get()))
+        
+        # Depth
+        ttk.Label(controls, text="Depth").grid(row=2, column=0, padx=5)
+        self.lfo_depth = ttk.Scale(
+            controls, from_=0, to=100,
+            orient="horizontal", length=200,
+            command=lambda v: self._update_lfo_param('depth', float(v)/100)
+        )
+        self.lfo_depth.set(50)
+        self.lfo_depth.grid(row=2, column=1, padx=5, pady=5)
+        
+        # Target
+        ttk.Label(controls, text="Target").grid(row=3, column=0, padx=5)
+        self.lfo_target = ttk.Combobox(
+            controls,
+            values=[
+                'cutoff', 'resonance', 'volume', 'pan', 'pitch',
+                'osc1_level', 'osc2_level', 'osc3_level',
+                'sub_level', 'noise_level'
+            ],
+            state='readonly',
+            width=15
+        )
+        self.lfo_target.set('cutoff')
+        self.lfo_target.grid(row=3, column=1, padx=5, pady=5)
+        self.lfo_target.bind('<<ComboboxSelected>>', 
+                            lambda e: self._update_lfo_target(self.lfo_target.get()))
+        
+        # Bypass
+        self.lfo_bypass = ttk.Checkbutton(
+            controls, text="Bypass",
+            command=lambda: self._update_lfo_param('bypassed', self.lfo_bypass_var.get())
+        )
+        self.lfo_bypass.grid(row=4, column=0, columnspan=2, pady=5)
+        
+        # Right side - Visualization
+        viz = ttk.Frame(frame)
+        viz.grid(row=0, column=1, padx=20, pady=5)
+        
+        self.lfo_value_label = ttk.Label(viz, text="0%")
+        self.lfo_value_label.grid(row=0, column=0, pady=5)
+        
+        self.lfo_bar = ttk.Progressbar(
+            viz, orient="vertical",
+            length=200, mode='determinate'
+        )
+        self.lfo_bar.grid(row=1, column=0, pady=5)
+
+    def _update_lfo_param(self, param, value):
+        """Update LFO parameters"""
+        if hasattr(self.synth, 'lfo'):
+            setattr(self.synth.lfo, param, value)
+
+    def _update_lfo_target(self, target):
+        """Update LFO target parameter"""
+        if hasattr(self.synth, 'lfo'):
+            current_value = getattr(STATE, target)
+            self.synth.lfo.add_target(target, current_value)
+
+    def _update_lfo_display(self):
+        """Update LFO visualization bar"""
+        if hasattr(self.synth, 'lfo'):
+            # Get current LFO value (-1 to 1) and convert to 0-100
+            value = self.synth.lfo.get_value()
+            percent = int((value + 1) * 50)  # Convert -1/1 to 0/100
+            
+            # Update progress bar and label
+            self.lfo_bar['value'] = percent
+            self.lfo_value_label['text'] = f"{percent}%"
+        
+        # Schedule next update
+        self.root.after(16, self._update_lfo_display)  # ~60fps refresh
+
+    def _start_lfo_updates(self):
+        """Start LFO visualization updates"""
+        def update_loop():
+            if hasattr(self.synth, 'lfo'):
+                value = self.synth.lfo.get_value()
+                percent = int((value + 1) * 50)  # Convert -1/1 to 0/100
+                self.lfo_bar['value'] = percent
+                self.lfo_value_label['text'] = f"{percent}%"
+            self.lfo_update_id = self.root.after(16, update_loop)  # ~60fps
+        
+        update_loop()
 
     def create_effects_frame(self):
         """Create the effects control frame"""
@@ -547,6 +641,8 @@ class SynthesizerGUIV2:
     def stop(self):
         """Stop the GUI update loop"""
         self.running = False
+        if self.lfo_update_id:
+            self.root.after_cancel(self.lfo_update_id)
 
     def on_close(self):
         """Handle the GUI window close event"""
@@ -564,6 +660,5 @@ class SynthesizerGUIV2:
 
 def create_gui_v2(synth):
     """Create and return the main GUI window"""
-    root = tk.Tk()
-    gui = SynthesizerGUIV2(root, synth)
-    return root, gui
+    gui = SynthesizerGUIV2(synth)
+    return gui.root, gui
