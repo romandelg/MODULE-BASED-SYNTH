@@ -37,38 +37,25 @@ def force_realtek_device():
     return realtek_device
 
 def select_midi_device():
-    """Prompt the user to select a MIDI input device"""
+    """Select MIDI input device"""
     midi_devices = mido.get_input_names()
+    DEBUG.log(f"\nFound MIDI devices: {midi_devices}")
+    
     if not midi_devices:
         DEBUG.log("No MIDI devices found!")
         return None
         
-    DEBUG.log("\nAvailable MIDI Input Devices:")
-    DEBUG.log("-" * 50)
-    for i, device in enumerate(midi_devices):
-        DEBUG.log(f"{i}: {device}")
-    
-    while True:
-        try:
-            choice = input("\nSelect MIDI input device (0-{}): ".format(len(midi_devices)-1))
-            if choice.strip().lower() == '':
-                DEBUG.log("Using first MIDI device")
-                return midi_devices[0]
-                
-            idx = int(choice)
-            if 0 <= idx < len(midi_devices):
-                DEBUG.log(f"Selected: {midi_devices[idx]}")
-                return midi_devices[idx]
-        except ValueError:
-            DEBUG.log("Please enter a valid number")
-        except IndexError:
-            DEBUG.log("Please enter a number in the valid range")
+    # Auto-select first device
+    selected_device = midi_devices[0]
+    DEBUG.log(f"Auto-selected MIDI device: {selected_device}")
+    return selected_device
 
 def main():
     """Initialize and run the synthesizer"""
     try:
         # Force Realtek audio device
         output_device = force_realtek_device()
+        DEBUG.log(f"Selected audio output device: {output_device}")
         
         # Select MIDI device
         midi_device = select_midi_device()
@@ -76,17 +63,21 @@ def main():
         
         # Create synth with forced Realtek device
         synth = Synthesizer(device=output_device)
+        DEBUG.log("Synthesizer initialized")
         
         # Create and initialize MIDI handler with device selection
         midi = MIDIHandler(midi_device)
+        DEBUG.log("MIDI handler initialized")
         
         # Create NoiseSubModule and set parameters
         noise_sub_module = NoiseSubModule()
         noise_sub_module.set_parameters(noise_amount=0.5, sub_amount=0.5, harmonics=0.5, inharmonicity=0.0)  # Include all required arguments
+        DEBUG.log("NoiseSubModule initialized and parameters set")
         
         # Create GUI
         root, gui = create_gui_v2(synth)  # Always use gui_v2
         synth.gui = gui  # Add reference to GUI in the synth instance
+        DEBUG.log("GUI created and linked to synthesizer")
         
         # Start the synth engine
         synth.start()
@@ -95,6 +86,7 @@ def main():
         # Connect MIDI callbacks
         def midi_callback(event_type, note, velocity):
             DEBUG.log(f"MIDI callback: {event_type}, Note: {note}, Velocity: {velocity}")
+            print(f"MIDI callback: {event_type}, Note: {note}, Velocity: {velocity}")  # Print MIDI callback details
             if event_type == 'note_on':
                 synth.note_on(note, velocity)
             elif event_type == 'note_off':
@@ -102,6 +94,7 @@ def main():
         
         # Start MIDI handling
         midi.start(midi_callback)
+        DEBUG.log("MIDI handling started")
         
         try:
             # Start GUI main loop
@@ -111,6 +104,7 @@ def main():
             synth.stop()
             midi.stop()
             gui.stop()
+            DEBUG.log("Cleanup completed")
         
     except Exception as e:
         DEBUG.log(f"An error occurred: {e}")

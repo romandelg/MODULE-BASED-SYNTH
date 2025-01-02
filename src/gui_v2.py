@@ -404,8 +404,10 @@ class SynthesizerGUIV2:
                             lambda e: self._update_lfo_target(self.lfo_target.get()))
         
         # Bypass
+        self.lfo_bypass_var = tk.BooleanVar()
         self.lfo_bypass = ttk.Checkbutton(
             controls, text="Bypass",
+            variable=self.lfo_bypass_var,
             command=lambda: self._update_lfo_param('bypassed', self.lfo_bypass_var.get())
         )
         self.lfo_bypass.grid(row=4, column=0, columnspan=2, pady=5)
@@ -458,7 +460,7 @@ class SynthesizerGUIV2:
                 self.lfo_value_label['text'] = f"{percent}%"
             self.lfo_update_id = self.root.after(16, update_loop)  # ~60fps
         
-        update_loop()
+        self.lfo_update_id = self.root.after(16, update_loop)
 
     def create_effects_frame(self):
         """Create the effects control frame"""
@@ -646,7 +648,7 @@ class SynthesizerGUIV2:
 
     def on_close(self):
         """Handle the GUI window close event"""
-        self.running = False
+        self.stop()
         self.master.destroy()
         self.synth.stop()
         print("GUI closed and script stopped.")

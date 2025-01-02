@@ -35,106 +35,83 @@ from queue import Queue
 from threading import Thread, Lock
 from config import MIDI_CONFIG, STATE
 from debug import DEBUG
+from mido import MidiFile, MidiTrack, Message
 
 class MIDIHandler:
-    """Handles MIDI input and maps events to synthesizer parameters"""
+    """Handles MIDI input and routes events to the synthesizer"""
     
     def __init__(self, device_name=None):
         self.callback = None
-        self.midi_in = None
-        self.event_queue = Queue()
-        self.running = False
+        self.input_port = None
         self.device_name = device_name
         self.lock = Lock()
         
     def start(self, callback: Callable):
-        """Start the MIDI handler with the given callback"""
-        self.callback = callback
-        self.running = True
-        Thread(target=self._midi_loop, daemon=True).start()
-        self._connect_midi()
+        """Start MIDI input and set the callback for MIDI events"""
+        try:
+            available_devices = mido.get_input_names()
+            DEBUG.log(f"Available MIDI devices: {available_devices}")
+            
+            # Auto-select first available device if none specified
+            if not self.device_name and available_devices:
+                self.device_name = available_devices[0]
+                DEBUG.log(f"Auto-selected MIDI device: {self.device_name}")
+                
+            if not available_devices:
+                DEBUG.log("ERROR: No MIDI devices found!")
+                return
+                
+            if self.device_name not in available_devices:
+                DEBUG.log(f"Warning: Selected device '{self.device_name}' not found.")
+                self.device_name = available_devices[0]
+                DEBUG.log(f"Using first available device: {self.device_name}")
+                
+            self.input_port = mido.open_input(self.device_name)
+            self.callback = callback
+            
+            # Start message polling thread
+            def poll_messages():
+                while self.input_port:
+                    for msg in self.input_port.iter_pending():
+                        self._midi_callback(msg)
+                    time.sleep(0.001)  # Small sleep to prevent CPU hogging
+                    
+            self._poll_thread = Thread(target=poll_messages, daemon=True)
+            self._poll_thread.start()
+            
+            DEBUG.log(f"MIDI input started successfully on {self.device_name}")
+            self._last_event_time = time.time()
+            
+        except Exception as e:
+            DEBUG.log(f"MIDI start error: {str(e)}")
             
     def stop(self):
-        """Stop the MIDI handler"""
-        self.running = False
-        if self.midi_in:
-            self.midi_in.close()
+        """Stop MIDI input"""
+        if self.input_port:
+            self.input_port.close()
+            DEBUG.log("MIDI input stopped")
             
-    def _connect_midi(self) -> bool:
-        """Connect to the MIDI device"""
-        try:
-            if self.midi_in:
-                self.midi_in.close()
-                
-            ports = mido.get_input_names()
-            if self.device_name and self.device_name in ports:
-                self.midi_in = mido.open_input(self.device_name)
-            elif ports:
-                self.midi_in = mido.open_input(ports[0])
-                self.device_name = ports[0]
-            else:
-                return False
-            DEBUG.log(f"Connected to MIDI device: {self.device_name}")
-            return True
-            
-        except Exception as e:
-            DEBUG.log(f"Failed to connect to MIDI device: {e}")
-            return False
-            
-    def _midi_loop(self):
-        """Main loop for processing MIDI events"""
-        while self.running:
-            try:
-                if not self.midi_in:
-                    if not self._connect_midi():
-                        time.sleep(1.0)
-                        continue
+    def _monitor_input(self):
+        """Check periodically if we've received any input."""
+        while True:
+            time.sleep(2.0)  # Check every 2 seconds
+            elapsed = time.time() - self._last_event_time
+            if elapsed > 2.0:
+                print("No MIDI events detected in the last 2 seconds...")
+            if not self.input_port:
+                break
 
-                for msg in self.midi_in.iter_pending():
-                    self._handle_midi_message(msg)
-                time.sleep(0.001)
-                
-            except Exception as e:
-                DEBUG.log(f"Error in MIDI loop: {e}")
-                self.midi_in = None
-
-    def _handle_midi_message(self, msg):
-        """Handle incoming MIDI messages"""
-        try:
-            DEBUG.log(f"Received MIDI message: {msg}")
-            if msg.type == 'note_on' and msg.velocity > 0:
-                self.callback('note_on', msg.note, msg.velocity)
-            elif msg.type == 'note_off' or (msg.type == 'note_on' and msg.velocity == 0):
-                self.callback('note_off', msg.note, 0)
-            elif msg.type == 'control_change':
-                self._handle_cc(msg.control, msg.value)
-        except Exception as e:
-            DEBUG.log(f"Error handling MIDI message: {e}")
-
-    def _handle_cc(self, cc: int, value: int):
-        """Handle MIDI control change messages"""
-        with self.lock:
-            normalized = value / 127.0
-            try:
-                if cc in MIDI_CONFIG.OSC_MIX_CCS:
-                    idx = MIDI_CONFIG.OSC_MIX_CCS.index(cc)
-                    STATE.osc_mix[idx] = normalized
-                elif cc in MIDI_CONFIG.OSC_DETUNE_CCS:
-                    idx = MIDI_CONFIG.OSC_DETUNE_CCS.index(cc)
-                    STATE.osc_detune[idx] = normalized * 2 - 1
-                elif cc == MIDI_CONFIG.FILTER_CUTOFF_CC:
-                    STATE.filter_cutoff = normalized
-                elif cc == MIDI_CONFIG.FILTER_RES_CC:
-                    STATE.filter_res = normalized
-                elif cc in MIDI_CONFIG.ADSR_CCS:
-                    idx = MIDI_CONFIG.ADSR_CCS.index(cc)
-                    param = ['attack', 'decay', 'sustain', 'release'][idx]
-                    STATE.adsr[param] = normalized
-                elif cc == 24:  # LFO Frequency
-                    STATE.lfo_frequency = normalized * 20  # Scale to 0.1 - 20 Hz
-                elif cc == 25:  # LFO Depth
-                    STATE.lfo_depth = normalized * 2  # Scale to 0.0 - 2.0
-                DEBUG.log(f"Handled CC message: CC={cc}, Value={value}, Normalized={normalized}")
-            except Exception as e:
-                DEBUG.log(f"Error handling CC message: {e}")
-                pass
+    def _midi_callback(self, message):
+        """Internal MIDI callback to process MIDI messages"""
+        self._last_event_time = time.time()
+        DEBUG.log(f"MIDI message received: {message}")
+        if message.type == 'note_on':
+            DEBUG.log(f"Note On: {message.note}, Velocity: {message.velocity}")
+            print(f"Note On: {message.note}, Velocity: {message.velocity}")  # Print individual keystrokes
+            self.callback('note_on', message.note, message.velocity)
+        elif message.type == 'note_off':
+            DEBUG.log(f"Note Off: {message.note}, Velocity: {message.velocity}")
+            print(f"Note Off: {message.note}, Velocity: {message.velocity}")  # Print individual keystrokes
+            self.callback('note_off', message.note, message.velocity)
+        else:
+            DEBUG.log(f"Unhandled MIDI message type: {message.type}")

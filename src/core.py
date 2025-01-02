@@ -32,6 +32,7 @@ class Voice:
         self.sequencer_step = 0
         self.sequencer_time = 0
         self.step_duration = 44100  # One step per second by default
+        self.lfo = LFO()  # Add LFO instance
 
     def reset(self):
         """Reset the voice to its initial state"""
@@ -47,6 +48,18 @@ class Voice:
 
         output = np.zeros(frames)
         
+        # Get LFO values first
+        if hasattr(STATE, 'lfo_frequency') and hasattr(STATE, 'lfo_depth'):
+            # Apply LFO modulation to parameters
+            lfo_value = self.lfo.get_value() * STATE.lfo_depth
+            
+            # Modulate parameters based on LFO targets
+            for target, (base_value, param_type) in self.lfo.targets.items():
+                if hasattr(STATE, target):
+                    current_value = getattr(STATE, target)
+                    modulated_value = current_value + (lfo_value * base_value)
+                    setattr(STATE, target, np.clip(modulated_value, 0, 1))
+
         # Check input source before processing
         if not hasattr(STATE, 'input_source'):
             STATE.input_source = 'midi'  # Fallback to MIDI if not set
@@ -66,9 +79,14 @@ class Voice:
             elif self.sequencer_time >= self.step_duration * 0.8:  # Release note at 80% of step
                 self.adsr.gate_off()
 
-        # Calculate frequency (now supporting both MIDI and sequencer notes)
+        # Calculate frequency with possible LFO pitch modulation
         if self.note is not None:
-            frequency = 440.0 * (2.0 ** ((self.note - 69) / 12.0))  # Removed octave shift
+            base_freq = 440.0 * (2.0 ** ((self.note - 69) / 12.0))
+            if 'pitch' in self.lfo.targets:
+                pitch_mod = self.lfo.get_value() * STATE.lfo_depth * 2  # +/- 2 semitones
+                frequency = base_freq * (2 ** (pitch_mod / 12))
+            else:
+                frequency = base_freq
         else:
             return np.zeros(frames)
 
@@ -83,7 +101,12 @@ class Voice:
                         detune=STATE.osc_detune[i],
                         harmonics=STATE.osc_harmonics[i]
                     )
-                    output += osc_output * STATE.osc_mix[i] * self.velocity
+                    # Apply LFO modulation to oscillator mix if targeted
+                    mix_level = STATE.osc_mix[i]
+                    if f'osc{i+1}_level' in self.lfo.targets:
+                        mix_level *= (1.0 + self.lfo.get_value() * STATE.lfo_depth)
+                    output += osc_output * mix_level * self.velocity
+                    DEBUG.log(f"Oscillator {i+1} output: {osc_output[:10]}")  # Log first 10 samples for debugging
 
         # 2. Noise and Sub-Oscillator Module
         if STATE.chain_enabled['noise_sub'] and not STATE.chain_bypass['noise_sub']:
@@ -94,6 +117,7 @@ class Voice:
                 inharmonicity=STATE.noise_inharmonicity
             )
             output = self.noise_sub_module.generate(output, frequency, frames)
+            DEBUG.log(f"Noise/Sub-Oscillator output: {output[:10]}")  # Log first 10 samples for debugging
             
         # 3. Mixer (future mixing features)
         if STATE.chain_enabled['mixer'] and not STATE.chain_bypass['mixer']:
@@ -102,6 +126,7 @@ class Voice:
         # 4. Envelope
         if STATE.chain_enabled['envelope'] and not STATE.chain_bypass['envelope']:
             output = output * self.adsr.process(frames)
+            DEBUG.log(f"Envelope output: {output[:10]}")  # Log first 10 samples for debugging
             
         self.pre_filter_mix = output.copy()
         
@@ -115,6 +140,7 @@ class Voice:
                 harmonics=STATE.filter_harmonics
             )
             output = self.filter.process(output)
+            DEBUG.log(f"Filter output: {output[:10]}")  # Log first 10 samples for debugging
             
         self.post_filter_mix = output.copy()
         
@@ -171,16 +197,20 @@ class Synthesizer:
     def start(self):
         """Start the audio output stream"""
         print("Starting audio stream...")
-        self.stream = sd.OutputStream(
-            device=self.device,
-            channels=1,
-            samplerate=self.samplerate,
-            blocksize=AUDIO_CONFIG.BUFFER_SIZE,
-            dtype='float32',
-            callback=self._audio_callback
-        )
-        self.stream.start()
-        print("Audio stream started successfully")
+        try:
+            self.stream = sd.OutputStream(
+                device=self.device,
+                channels=1,
+                samplerate=self.samplerate,
+                blocksize=AUDIO_CONFIG.BUFFER_SIZE,
+                dtype='float32',
+                callback=self._audio_callback
+            )
+            self.stream.start()
+            print("Audio stream started successfully")
+        except Exception as e:
+            print(f"Failed to start audio stream: {e}")
+            DEBUG.log(f"Failed to start audio stream: {e}")
             
     def stop(self):
         """Stop the audio output stream and reset all voices"""
@@ -207,27 +237,20 @@ class Synthesizer:
 
     def note_on(self, note: int, velocity: int):
         """Handle MIDI note on event"""
-        print(f"Note On: {note}, Velocity: {velocity}")  # Debugging statement
+        DEBUG.log(f"Processing Note On: note={note}, velocity={velocity}")
+        
         with self.lock:
-            # Record sequencer notes if in recording mode
-            if STATE.sequencer_recording:
-                STATE.sequencer_notes.append(note)
-                STATE.sequencer_record_count += 1
-                self._note_recorded()
-
-            if STATE.input_source == 'midi':
-                voice = self._find_free_voice()
-                if voice:
-                    voice.note = note
-                    voice.velocity = velocity / 127.0
-                    voice.active = True
-                    voice.adsr.set_parameters(
-                        STATE.adsr['attack'],
-                        STATE.adsr['decay'],
-                        STATE.adsr['sustain'],
-                        STATE.adsr['release']
-                    )
-                    voice.adsr.gate_on()
+            # Find free voice
+            voice = self._find_free_voice()
+            if voice:
+                DEBUG.log(f"Assigning note {note} to voice")
+                voice.note = note
+                voice.velocity = velocity / 127.0
+                voice.active = True
+                voice.adsr.gate_on()
+                DEBUG.log(f"Voice activated: note={note}, velocity={voice.velocity}")
+            else:
+                DEBUG.log("No free voices available!")
 
     def _print_recorded_sequence(self):
         """Print the recorded sequence of notes"""
@@ -242,11 +265,13 @@ class Synthesizer:
 
     def note_off(self, note: int):
         """Handle MIDI note off event"""
-        print(f"Note Off: {note}")  # Debugging statement
+        DEBUG.log(f"Processing Note Off: note={note}")
+        
         with self.lock:
             for voice in self.voices:
-                if voice.note == note:
-                    voice.adsr.gate_off()  # Transition ADSR to release state
+                if voice.note == note and voice.active:
+                    DEBUG.log(f"Found voice for note {note}, triggering release")
+                    voice.adsr.gate_off()
                     break
 
     def reset_all_voices(self):
@@ -406,30 +431,25 @@ class Synthesizer:
 
         try:
             with self.lock:
+                # Process LFO first
+                self.lfo.generate(frames)
+                
+                # Update modulation targets
+                self.lfo.process()  # Make sure all targets are updated
+                
                 output = np.zeros(frames)
                 active_count = 0
                 
-                # 1. Process each voice
+                # Process voices with updated modulated parameters
                 for voice in self.voices:
                     if voice.active:
-                        try:
-                            voice_output = voice.process(frames)
-                            if np.any(voice_output != 0):
-                                active_count += 1
-                                output += voice_output
-                        except ValueError as ve:
-                            print(f"Voice processing error (ValueError): {ve}")
-                        except TypeError as te:
-                            print(f"Voice processing error (TypeError): {te}")
-                        except IndexError as ie:
-                            print(f"Voice processing error (IndexError): {ie}")
-                        except Exception as e:
-                            print(f"Voice processing error: {e}")
+                        voice_output = voice.process(frames)
+                        if np.any(voice_output != 0):
+                            active_count += 1
+                            output += voice_output
+                            DEBUG.log(f"Voice output: {voice_output[:10]}")  # Log first 10 samples for debugging
                 
-                # 2. Apply LFO modulation
-                self.lfo.generate(frames)
-                
-                # 3. Apply master effects chain
+                # Apply master effects chain
                 if active_count > 0:
                     # Normalize
                     output = np.clip(output / max(1.0, active_count), -1.0, 1.0)
@@ -451,6 +471,7 @@ class Synthesizer:
                     
                     # Monitor final output
                     DEBUG.monitor_signal('audio_out', output)
+                    DEBUG.log(f"Final output: {output[:10]}")  # Log first 10 samples for debugging
                     
                 outdata[:] = output.reshape(outdata.shape)
                 
