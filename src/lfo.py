@@ -20,7 +20,12 @@ PARAMETER_RANGES = {
     'osc2_level': (0, 100),
     'osc3_level': (0, 100),
     'sub_level': (0, 100),
-    'noise_level': (0, 100)
+    'noise_level': (0, 100),
+    'osc1_mix': (0, 1),
+    'osc2_mix': (0, 1),
+    'osc3_mix': (0, 1),
+    'osc4_mix': (0, 1),
+    'osc5_mix': (0, 1)
 }
 
 class LFO:

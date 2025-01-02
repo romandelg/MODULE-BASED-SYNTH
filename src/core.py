@@ -49,17 +49,8 @@ class Voice:
         output = np.zeros(frames)
         
         # Get LFO values first
-        if hasattr(STATE, 'lfo_frequency') and hasattr(STATE, 'lfo_depth'):
-            # Apply LFO modulation to parameters
-            lfo_value = self.lfo.get_value() * STATE.lfo_depth
-            
-            # Modulate parameters based on LFO targets
-            for target, (base_value, param_type) in self.lfo.targets.items():
-                if hasattr(STATE, target):
-                    current_value = getattr(STATE, target)
-                    modulated_value = current_value + (lfo_value * base_value)
-                    setattr(STATE, target, np.clip(modulated_value, 0, 1))
-
+        lfo_values = self.lfo.generate(frames) * STATE.lfo_depth
+        
         # Check input source before processing
         if not hasattr(STATE, 'input_source'):
             STATE.input_source = 'midi'  # Fallback to MIDI if not set
@@ -83,7 +74,7 @@ class Voice:
         if self.note is not None:
             base_freq = 440.0 * (2.0 ** ((self.note - 69) / 12.0))
             if 'pitch' in self.lfo.targets:
-                pitch_mod = self.lfo.get_value() * STATE.lfo_depth * 2  # +/- 2 semitones
+                pitch_mod = lfo_values * 2  # +/- 2 semitones
                 frequency = base_freq * (2 ** (pitch_mod / 12))
             else:
                 frequency = base_freq
@@ -103,8 +94,8 @@ class Voice:
                     )
                     # Apply LFO modulation to oscillator mix if targeted
                     mix_level = STATE.osc_mix[i]
-                    if f'osc{i+1}_level' in self.lfo.targets:
-                        mix_level *= (1.0 + self.lfo.get_value() * STATE.lfo_depth)
+                    if f'osc{i+1}_mix' in self.lfo.targets:
+                        mix_level *= (1.0 + lfo_values)
                     output += osc_output * mix_level * self.velocity
                     DEBUG.log(f"Oscillator {i+1} output: {osc_output[:10]}")  # Log first 10 samples for debugging
 
